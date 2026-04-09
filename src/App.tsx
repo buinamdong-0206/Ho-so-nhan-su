@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, User, MapPin, Calendar, GraduationCap, X, Info, Filter, Briefcase, Plus, List, Trash2, ChevronRight, ArrowLeft, GripVertical, Check, RefreshCw, Edit3, Download, ExternalLink } from 'lucide-react';
+import { slugify } from './utils/slugify';
 import { Profile, ApiResponse, PoliticalCareer, PoliticalCareerResponse, CustomList, ServerData, ProfileGroup } from './types';
 import { db } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query } from 'firebase/firestore';
@@ -60,6 +61,25 @@ export default function App() {
   const [isCreatingList, setIsCreatingList] = useState(false);
   const [editingList, setEditingList] = useState<CustomList | null>(null);
   const [viewingList, setViewingList] = useState<CustomList | null>(null);
+  const [isListView, setIsListView] = useState(false);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/list/')) {
+      setIsListView(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isListView && customLists.length > 0) {
+      const pathParts = window.location.pathname.split('/');
+      const id = pathParts[pathParts.length - 1];
+      const list = customLists.find(l => l.id === id);
+      if (list) {
+        setViewingList(list);
+      }
+    }
+  }, [isListView, customLists]);
   
   const [newListName, setNewListName] = useState('');
   const [selectedGroupsForNewList, setSelectedGroupsForNewList] = useState<ProfileGroup[]>([{ id: 'default', name: 'Chưa phân nhóm', profileIds: [] }]);
@@ -734,7 +754,7 @@ export default function App() {
                           {customLists.map(list => (
                             <div 
                               key={list.id}
-                              onClick={() => setViewingList(list)}
+                              onClick={() => window.open('/list/' + slugify(list.name) + '/' + list.id, '_blank')}
                               className="group flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
                             >
                               <div className="flex items-center gap-3 truncate">

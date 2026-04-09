@@ -43,6 +43,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+export function getDisplayAvatar(profile: Profile): string {
+  if (profile.avatar_url && profile.avatar_url.includes('_w360.jpg')) {
+    return profile.avatar_url;
+  }
+  return profile.avatars?.['W360_R4X5'] || profile.avatar_url;
+}
 
 export default function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -122,17 +128,18 @@ export default function App() {
         
         await Promise.all(chunk.map(async (profile) => {
           let newAvatarUrl = profile.avatar_url;
+          const targetAvatar = profile.avatars?.['W360_R4X5'] || profile.avatar_url;
 
           // Upload image to Firebase Storage
-          if (profile.avatar_url && !profile.avatar_url.includes('firebasestorage')) {
+          if (targetAvatar && !profile.avatar_url.includes('_w360.jpg')) {
             try {
               // Fetch image via proxy to avoid CORS
-              const urlObj = new URL(profile.avatar_url);
-              let proxyImageUrl = profile.avatar_url;
+              const urlObj = new URL(targetAvatar);
+              let proxyImageUrl = targetAvatar;
               if (urlObj.hostname === 'cdn.daihoidangtoanquoc.vn') {
-                proxyImageUrl = `/api/proxy-cdn${urlObj.pathname.replace('/large/', '/medium/')}`;
+                proxyImageUrl = `/api/proxy-cdn${urlObj.pathname}`;
               } else if (urlObj.hostname === 'api.daihoidangtoanquoc.vn') {
-                proxyImageUrl = `/api/proxy${urlObj.pathname.replace('/large/', '/medium/')}`;
+                proxyImageUrl = `/api/proxy${urlObj.pathname}`;
               }
 
               const imgResponse = await fetch(proxyImageUrl);
@@ -140,7 +147,7 @@ export default function App() {
                 const blob = await imgResponse.blob();
                 const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
                 const { storage } = await import('./firebase');
-                const imageRef = ref(storage, `avatars/${profile.id}.jpg`);
+                const imageRef = ref(storage, `avatars/${profile.id}_w360.jpg`);
                 await uploadBytes(imageRef, blob);
                 newAvatarUrl = await getDownloadURL(imageRef);
               } else {
@@ -434,7 +441,7 @@ export default function App() {
             card.onclick = () => openModal(p.id, displayTitle);
             card.innerHTML = 
                 '<div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">' +
-                    '<img src="' + p.avatar_url + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
+                    '<img src="' + getDisplayAvatar(p) + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
                 '</div>' +
                 '<div class="w-full px-1 flex flex-col flex-1">' +
                     '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 flex items-center justify-center">' + p.name + '</h4>' +
@@ -483,7 +490,7 @@ export default function App() {
             const content = 
                 '<div class="flex flex-col md:flex-row gap-8 mb-10">' +
                     '<div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">' +
-                        '<img src="' + profile.avatar_url + '" alt="' + profile.name + '" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">' +
+                        '<img src="' + getDisplayAvatar(profile) + '" alt="' + profile.name + '" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">' +
                     '</div>' +
                     '<div class="flex-1">' +
                         '<div class="mb-6 text-center md:text-left">' +
@@ -873,7 +880,7 @@ export default function App() {
                 >
                   <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
                     <img
-                      src={profile.avatar_url}
+                      src={getDisplayAvatar(profile)}
                       alt={profile.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
@@ -1089,7 +1096,7 @@ export default function App() {
                                       <ChevronRight size={14} className="rotate-90" />
                                     </button>
                                   </div>
-                                  <img src={p.avatar_url} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
+                                  <img src={getDisplayAvatar(p)} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                                   <div className="flex-1 min-w-0 flex flex-col">
                                     <span className="text-sm font-bold truncate">{p.name}</span>
                                     <input 
@@ -1154,7 +1161,7 @@ export default function App() {
                           className={`selection-item flex items-center gap-3 p-2 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100 hover:border-gray-300'}`}
                         >
                           <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                            <img src={p.avatar_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={getDisplayAvatar(p)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold truncate">{p.name}</p>
@@ -1249,7 +1256,7 @@ export default function App() {
                             >
                               <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
                                 <img
-                                  src={profile.avatar_url}
+                                  src={getDisplayAvatar(profile)}
                                   alt={profile.name}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                   referrerPolicy="no-referrer"
@@ -1288,7 +1295,7 @@ export default function App() {
                         >
                           <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
                             <img
-                              src={profile.avatar_url}
+                              src={getDisplayAvatar(profile)}
                               alt={profile.name}
                               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                               referrerPolicy="no-referrer"
@@ -1365,7 +1372,7 @@ export default function App() {
                   <div className="flex flex-col md:flex-row gap-8 items-start">
                     <div className="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">
                       <img
-                        src={selectedProfile.avatar_url}
+                        src={getDisplayAvatar(selectedProfile)}
                         alt={selectedProfile.name}
                         className="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100"
                         referrerPolicy="no-referrer"

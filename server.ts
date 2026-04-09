@@ -237,13 +237,20 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
             }
         }
 
+        function getDisplayAvatar(profile) {
+            if (profile.avatar_url && profile.avatar_url.includes('_w360.jpg')) {
+                return profile.avatar_url;
+            }
+            return (profile.avatars && profile.avatars['W360_R4X5']) || profile.avatar_url;
+        }
+
         function createProfileCard(p, displayTitle) {
             const card = document.createElement('div');
             card.className = "w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-1rem)] md:w-[calc(25%-1.125rem)] lg:w-[calc(20%-1.2rem)] max-w-[220px] bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group h-full";
             card.onclick = () => openModal(p.id, displayTitle);
             card.innerHTML = 
                 '<div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">' +
-                    '<img src="' + p.avatar_url + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
+                    '<img src="' + getDisplayAvatar(p) + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
                 '</div>' +
                 '<div class="w-full px-1 flex flex-col flex-1">' +
                     '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 flex items-center justify-center">' + p.name + '</h4>' +
@@ -292,7 +299,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
             const content = 
                 '<div class="flex flex-col md:flex-row gap-8 mb-10">' +
                     '<div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">' +
-                        '<img src="' + profile.avatar_url + '" alt="' + profile.name + '" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">' +
+                        '<img src="' + getDisplayAvatar(profile) + '" alt="' + profile.name + '" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">' +
                     '</div>' +
                     '<div class="flex-1">' +
                         '<div class="mb-6 text-center md:text-left">' +

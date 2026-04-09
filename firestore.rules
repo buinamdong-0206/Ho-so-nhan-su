@@ -73,30 +73,13 @@ service cloud.firestore {
     }
 
     match /custom_lists/{listId} {
-      // Allow read if the user is the owner
-      allow read: if isOwner(resource.data.userId);
-      
-      // Allow create if authenticated, data is valid, and userId matches auth.uid
-      allow create: if isAuthenticated() && 
-                    isValidCustomList(request.resource.data) && 
-                    request.resource.data.userId == request.auth.uid;
-                    
-      // Allow update if owner, data is valid, and immutable fields haven't changed
-      allow update: if isOwner(resource.data.userId) && 
-                    isValidCustomList(request.resource.data) &&
-                    request.resource.data.userId == resource.data.userId &&
-                    request.resource.data.createdAt == resource.data.createdAt &&
-                    request.resource.data.id == resource.data.id;
-                    
-      // Allow delete if owner
-      allow delete: if isOwner(resource.data.userId);
+      // Allow read/write for everyone
+      allow read, write: if true;
     }
 
     match /profiles/{profileId} {
-      // Allow anyone to read profiles
-      allow read: if true;
-      // Allow authenticated users to write (for syncing)
-      allow write: if isAuthenticated();
+      // Allow anyone to read/write profiles
+      allow read, write: if true;
     }
   }
 }

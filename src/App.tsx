@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, MapPin, Calendar, GraduationCap, X, Info, Filter, Briefcase, Plus, List, Trash2, ChevronRight, ArrowLeft, GripVertical, Check, RefreshCw, Edit3, Download, ExternalLink, LogIn, LogOut } from 'lucide-react';
+import { Search, User, MapPin, Calendar, GraduationCap, X, Info, Filter, Briefcase, Plus, List, Trash2, ChevronRight, ArrowLeft, GripVertical, Check, RefreshCw, Edit3, Download, ExternalLink } from 'lucide-react';
 import { Profile, ApiResponse, PoliticalCareer, PoliticalCareerResponse, CustomList, ServerData, ProfileGroup } from './types';
-import { auth, db, signInWithGoogle, logOut, handleRedirectResult } from './firebase';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { db } from './firebase';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query } from 'firebase/firestore';
 
 const API_URL = '/api/proxy/api/profiles/get/items?offset=0&limit=250&ids=7%2C149%2C759%2C13394%2C212%2C272%2C13409%2C12618%2C247%2C10147%2C13291%2C237%2C317%2C12348%2C360%2C400%2C10294%2C26934%2C13438%2C12040%2C60%2C13054%2C13052%2C12117%2C65%2C12250%2C785%2C101%2C188%2C13294%2C10237%2C175%2C111%2C10403%2C344%2C258%2C309%2C331%2C66%2C28%2C12347%2C165%2C186%2C10279%2C148%2C12136%2C12156%2C388%2C12083%2C30%2C190%2C121%2C284%2C139%2C10425%2C391%2C110%2C166%2C10324%2C98%2C12065%2C310%2C320%2C359%2C155%2C10309%2C157%2C398%2C116%2C274%2C10387%2C73%2C12041%2C193%2C233%2C11%2C13199%2C164%2C203%2C378%2C13068%2C17062%2C12793%2C12043%2C107%2C9%2C128%2C12567%2C10327%2C94%2C395%2C10175%2C87%2C185%2C10369%2C13422%2C26938%2C12918%2C240%2C12646%2C26939%2C12307%2C10208%2C10719%2C26940%2C26941%2C19604%2C26942%2C281%2C26944%2C17573%2C298%2C115%2C88%2C42%2C342%2C97%2C118%2C26948%2C45%2C329%2C71%2C216%2C275%2C198%2C59%2C184%2C12148%2C75%2C26950%2C64%2C189%2C140%2C213%2C187%2C26951%2C12143%2C249%2C296%2C26952%2C232%2C390%2C104%2C26954%2C150%2C195%2C126%2C220%2C251%2C222%2C238%2C12312%2C409%2C10%2C16%2C228%2C48%2C12367%2C117%2C14463%2C327%2C43%2C26957%2C26958%2C26962%2C225%2C26965%2C18890%2C25036%2C20295%2C353%2C341%2C13766%2C26966%2C141%2C26967%2C18013%2C206%2C26968%2C343%2C119%2C26969%2C26959%2C10367%2C12138%2C168%2C181%2C10153%2C10262%2C12135%2C370%2C231%2C259%2C127%2C12075%2C147%2C26960%2C26963%2C178%2C316';
 const CAREER_API_URL = '/api/proxy/api/profiles/get/political-career?profileId=';
@@ -35,19 +34,7 @@ interface FirestoreErrorInfo {
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
+    authInfo: {},
     operationType,
     path
   }
@@ -77,33 +64,9 @@ export default function App() {
   const [newListName, setNewListName] = useState('');
   const [selectedGroupsForNewList, setSelectedGroupsForNewList] = useState<ProfileGroup[]>([{ id: 'default', name: 'Chưa phân nhóm', profileIds: [] }]);
   const [activeGroupIdForNewList, setActiveGroupIdForNewList] = useState<string>('default');
-  const [currentUser, setCurrentUser] = useState(auth.currentUser);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
-
-  const handleLogin = async () => {
-    try {
-      setAuthError(null);
-      await signInWithGoogle();
-    } catch (err: any) {
-      console.error(err);
-      setAuthError(err.message || "Đã xảy ra lỗi khi đăng nhập.");
-    }
-  };
-
-  useEffect(() => {
-    handleRedirectResult().then((result) => {
-      if (result) {
-        setCurrentUser(result.user);
-      }
-    });
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-    });
-    return () => unsubscribe();
-  }, []);
 
   // Fetch profiles from Firestore instead of API
   useEffect(() => {
@@ -145,7 +108,7 @@ export default function App() {
   };
 
   const handleSyncToFirebase = async () => {
-    if (!currentUser || profiles.length === 0) return;
+    if (profiles.length === 0) return;
     setIsSyncing(true);
     setSyncProgress({ current: 0, total: profiles.length });
 
@@ -166,9 +129,9 @@ export default function App() {
               const urlObj = new URL(profile.avatar_url);
               let proxyImageUrl = profile.avatar_url;
               if (urlObj.hostname === 'cdn.daihoidangtoanquoc.vn') {
-                proxyImageUrl = `/api/proxy-cdn${urlObj.pathname}`;
+                proxyImageUrl = `/api/proxy-cdn${urlObj.pathname.replace('/large/', '/medium/')}`;
               } else if (urlObj.hostname === 'api.daihoidangtoanquoc.vn') {
-                proxyImageUrl = `/api/proxy${urlObj.pathname}`;
+                proxyImageUrl = `/api/proxy${urlObj.pathname.replace('/large/', '/medium/')}`;
               }
 
               const imgResponse = await fetch(proxyImageUrl);
@@ -207,12 +170,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!currentUser) {
-      setCustomLists([]);
-      return;
-    }
-
-    const q = query(collection(db, 'custom_lists'), where('userId', '==', currentUser.uid));
+    const q = query(collection(db, 'custom_lists'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const lists: CustomList[] = [];
       snapshot.forEach((doc) => {
@@ -224,7 +182,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, []);
 
   const saveListToFirestore = async (list: CustomList) => {
     try {
@@ -310,14 +268,14 @@ export default function App() {
   }, [profiles, searchTerm, activeList]);
 
   const handleCreateList = async () => {
-    if (!newListName.trim() || !currentUser) return;
+    if (!newListName.trim()) return;
     const allProfileIds = selectedGroupsForNewList.flatMap(g => g.profileIds);
     const newList: CustomList = {
       id: Date.now().toString(),
       name: newListName.trim(),
       profileIds: allProfileIds,
       groups: selectedGroupsForNewList,
-      userId: currentUser.uid,
+      userId: 'anonymous',
       createdAt: new Date().toISOString()
     };
     await saveListToFirestore(newList);
@@ -328,7 +286,7 @@ export default function App() {
   };
 
   const handleUpdateList = async () => {
-    if (!editingList || !newListName.trim() || !currentUser) return;
+    if (!editingList || !newListName.trim()) return;
     const allProfileIds = selectedGroupsForNewList.flatMap(g => g.profileIds);
     const updatedList = { 
       ...editingList, 
@@ -745,7 +703,6 @@ export default function App() {
               </div>
               
               <nav className="flex items-center gap-1">
-                {currentUser ? (
                   <div className="flex items-center gap-4">
                     <button 
                       onClick={() => {
@@ -809,39 +766,28 @@ export default function App() {
                       </div>
                     </div>
                     <button 
-                      onClick={logOut}
-                      className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                      onClick={() => setIsCreatingList(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
                     >
-                      <LogOut size={16} />
-                      Đăng xuất
+                      <Plus size={16} />
+                      Tạo danh sách
                     </button>
                   </div>
-                ) : (
-                  <button 
-                    onClick={handleLogin}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
-                  >
-                    <LogIn size={16} />
-                    Đăng nhập để tạo danh sách
-                  </button>
-                )}
-              </nav>
-            </div>
+                  </nav>
+                </div>
 
-            <div className="flex items-center gap-3">
-              {currentUser && (
-                <button
-                  onClick={handleSyncToFirebase}
-                  disabled={isSyncing}
-                  className="flex items-center gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 text-sm font-bold rounded-xl hover:bg-indigo-100 transition-colors disabled:opacity-50"
-                  title="Đồng bộ dữ liệu và ảnh lên Firebase"
-                >
-                  <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-                  <span className="hidden sm:inline">
-                    {isSyncing ? `Đang đồng bộ (${syncProgress.current}/${syncProgress.total})` : 'Đồng bộ dữ liệu'}
-                  </span>
-                </button>
-              )}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSyncToFirebase}
+                    disabled={isSyncing}
+                    className="flex items-center gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 text-sm font-bold rounded-xl hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                    title="Đồng bộ dữ liệu và ảnh lên Firebase"
+                  >
+                    <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
+                    <span className="hidden sm:inline">
+                      {isSyncing ? `Đang đồng bộ (${syncProgress.current}/${syncProgress.total})` : 'Đồng bộ dữ liệu'}
+                    </span>
+                  </button>
               <div className="relative flex-1 md:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, signOut, getRedirectResult } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -12,7 +12,7 @@ export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
   try {
-    await signInWithRedirect(auth, googleProvider);
+    await signInWithPopup(auth, googleProvider);
   } catch (error) {
     console.error("Error signing in with Google", error);
     throw error;
@@ -20,13 +20,7 @@ export const signInWithGoogle = async () => {
 };
 
 export const handleRedirectResult = async () => {
-  try {
-    const result = await getRedirectResult(auth);
-    return result;
-  } catch (error) {
-    console.error("Error getting redirect result", error);
-    throw error;
-  }
+  return null;
 };
 
 export const logOut = async () => {

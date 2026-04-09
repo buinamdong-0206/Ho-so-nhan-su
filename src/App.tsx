@@ -61,25 +61,6 @@ export default function App() {
   const [isCreatingList, setIsCreatingList] = useState(false);
   const [editingList, setEditingList] = useState<CustomList | null>(null);
   const [viewingList, setViewingList] = useState<CustomList | null>(null);
-  const [isListView, setIsListView] = useState(false);
-
-  useEffect(() => {
-    const path = window.location.pathname;
-    if (path.startsWith('/list/')) {
-      setIsListView(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isListView && customLists.length > 0) {
-      const pathParts = window.location.pathname.split('/');
-      const id = pathParts[pathParts.length - 1];
-      const list = customLists.find(l => l.id === id);
-      if (list) {
-        setViewingList(list);
-      }
-    }
-  }, [isListView, customLists]);
   
   const [newListName, setNewListName] = useState('');
   const [selectedGroupsForNewList, setSelectedGroupsForNewList] = useState<ProfileGroup[]>([{ id: 'default', name: 'Chưa phân nhóm', profileIds: [] }]);
@@ -754,7 +735,7 @@ export default function App() {
                           {customLists.map(list => (
                             <div 
                               key={list.id}
-                              onClick={() => window.open('/list/' + slugify(list.name) + '/' + list.id, '_blank')}
+                              onClick={() => window.open(`/list-view.html?id=${list.id}&slug=${slugify(list.name)}`, '_blank')}
                               className="group flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
                             >
                               <div className="flex items-center gap-3 truncate">
@@ -1176,8 +1157,8 @@ export default function App() {
                   <ArrowLeft size={24} />
                 </button>
                 <div>
-                  <h2 className="text-2xl font-extrabold text-gray-900">{viewingList.name}</h2>
-                  <p className="text-xs text-gray-500 font-medium">Danh sách tùy chỉnh • {viewingList.profileIds.length} nhân sự</p>
+                  <h2 className="text-2xl font-extrabold text-gray-900">{viewingList?.name || 'Đang tải...'}</h2>
+                  <p className="text-xs text-gray-500 font-medium">Danh sách tùy chỉnh • {viewingList?.profileIds.length || 0} nhân sự</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">

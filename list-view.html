@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danh sách nhân sự</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 p-6 md:p-12">
+    <div id="app" class="max-w-7xl mx-auto">
+        <h1 id="list-name" class="text-4xl font-extrabold text-gray-900 mb-12 text-center">Đang tải...</h1>
+        <div id="list-content" class="space-y-12"></div>
+    </div>
+
+    <div id="modal-overlay" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeModal(event)">
+        <div id="modal-content" class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+            <button onclick="closeModal()" class="absolute top-4 right-4 z-10 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <div id="modal-body-content" class="overflow-y-auto p-10">
+                <!-- Content will be injected here -->
+            </div>
+            <div class="p-6 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button onclick="closeModal()" class="px-8 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-100 transition-all shadow-sm">Đóng cửa sổ</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js';
+        import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js';
+
+        let allProfiles = [];
+        let allCareers = {};
+        let db;
+
+        async function init() {
+            const response = await fetch('/firebase-applet-config.json');
+            const firebaseConfig = await response.json();
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const listId = urlParams.get('id');
+
+            const listDoc = await getDoc(doc(db, 'custom_lists', listId));
+            if (!listDoc.exists()) {
+                document.getElementById('list-name').innerText = 'Không tìm thấy danh sách';
+                return;
+            }
+
+            const list = listDoc.data();
+            console.log('List data:', list);
+            document.getElementById('list-name').innerText = list.name;
+
+            const profilesSnapshot = await getDocs(collection(db, 'profiles'));
+            allProfiles = profilesSnapshot.docs.map(doc => doc.data());
+            console.log('Profiles loaded:', allProfiles.length);
+            
+            // Fetch careers from Firestore
+            const careersSnapshot = await getDocs(collection(db, 'political_careers'));
+            careersSnapshot.forEach(doc => {
+                allCareers[doc.id] = doc.data().careers;
+            });
+            console.log('Careers loaded from Firestore:', Object.keys(allCareers).length);
+
+            const content = document.getElementById('list-content');
+            
+            if (list.groups && list.groups.length > 0) {
+                list.groups.forEach(group => {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = "text-center mb-16";
+                    groupDiv.innerHTML = `<h3 class="text-xl font-bold text-gray-900 mb-8 pb-2 border-b-2 border-blue-500 inline-block">${group.name}</h3>`;
+                    const flexContainer = document.createElement('div');
+                    flexContainer.className = "flex flex-wrap justify-center gap-6";
+                    
+                    group.profileIds.forEach(id => {
+                        const profile = allProfiles.find(p => p.id === id);
+                        if (profile) {
+                            flexContainer.appendChild(createProfileCard(profile));
+                        }
+                    });
+                    groupDiv.appendChild(flexContainer);
+                    content.appendChild(groupDiv);
+                });
+            } else {
+                const flexContainer = document.createElement('div');
+                flexContainer.className = "flex flex-wrap justify-center gap-6";
+                list.profileIds.forEach(id => {
+                    const profile = allProfiles.find(p => p.id === id);
+                    if (profile) {
+                        flexContainer.appendChild(createProfileCard(profile));
+                    }
+                });
+                content.appendChild(flexContainer);
+            }
+        }
+
+        function createProfileCard(profile) {
+            const card = document.createElement('div');
+            card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group w-[140px] sm:w-[160px] md:w-[180px]";
+            card.onclick = () => openModal(profile.id);
+            card.innerHTML = `
+                <div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">
+                    <img src="${profile.avatar_url || ''}" alt="${profile.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" onerror="this.src='https://via.placeholder.com/300x400'" />
+                </div>
+                <div class="w-full px-1">
+                    <h4 class="font-bold text-sm text-gray-900 uppercase mb-1 line-clamp-2 min-h-[2.5rem] flex items-center justify-center">${profile.name}</h4>
+                    <p class="text-[10px] text-blue-600 font-bold leading-tight uppercase line-clamp-3">${profile.main_title || ''}</p>
+                </div>
+            `;
+            return card;
+        }
+
+        window.openModal = async function(id) {
+            const profile = allProfiles.find(p => p.id === id);
+            if (!profile) return;
+
+            // Show loading state in modal
+            document.getElementById('modal-body-content').innerHTML = '<div class="flex items-center justify-center py-20"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>';
+            document.getElementById('modal-overlay').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+
+            let profileCareers = allCareers[id];
+            
+            // If not in memory, try fetching from Firestore or API
+            if (!profileCareers) {
+                try {
+                    const careerDoc = await getDoc(doc(db, 'political_careers', id.toString()));
+                    if (careerDoc.exists()) {
+                        profileCareers = careerDoc.data().careers;
+                        allCareers[id] = profileCareers;
+                    } else {
+                        // Fallback to API
+                        const response = await fetch(`/api/proxy/api/profiles/get/political-career?profileId=${id}`);
+                        const result = await response.json();
+                        profileCareers = result.data;
+                        allCareers[id] = profileCareers;
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch career:', err);
+                    profileCareers = [];
+                }
+            }
+
+            const careerHtml = profileCareers && profileCareers.length > 0 
+                ? `<div class="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+                    <table class="w-full border-collapse">
+                        <tbody class="divide-y divide-gray-50">
+                            ${profileCareers.map(c => {
+                                const clean = c.description.replace(/<[^>]*>/g, '').trim();
+                                const colon = clean.indexOf(':');
+                                const time = colon > 0 && colon < 35 ? clean.slice(0, colon+1) : '';
+                                const text = colon > 0 && colon < 35 ? clean.slice(colon+1) : clean;
+                                return `<tr>
+                                    <td class="whitespace-nowrap py-4 pr-4 font-bold text-gray-900 align-top w-1/4">
+                                        <div class="flex items-start gap-2">
+                                            <div class="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></div>
+                                            <span>${time}</span>
+                                        </div>
+                                    </td>
+                                    <td class="py-4 text-gray-600 leading-relaxed">${text}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>`
+                : '<div class="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200"><p class="text-sm text-gray-400 italic">Không có dữ liệu tiểu sử.</p></div>';
+
+            const birthDayStr = profile.birth_day ? profile.birth_day.toString() : '';
+            const formattedBirthDay = birthDayStr.length === 8 
+                ? `${birthDayStr.slice(6,8)}/${birthDayStr.slice(4,6)}/${birthDayStr.slice(0,4)}`
+                : 'N/A';
+
+            const content = `
+                <div class="flex flex-col md:flex-row gap-8 mb-10">
+                    <div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">
+                        <img src="${profile.avatar_url}" alt="${profile.name}" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">
+                    </div>
+                    <div class="flex-1">
+                        <div class="mb-6 text-center md:text-left">
+                            <h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">${profile.name}</h2>
+                            <p class="text-blue-600 font-bold text-lg leading-snug mb-4">${profile.main_title || ''}</p>
+                        </div>
+                        <section>
+                            <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">📍</div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 font-bold uppercase">Quê quán</p>
+                                        <p class="text-sm font-bold text-gray-700">${profile.hometown || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">📅</div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 font-bold uppercase">Ngày sinh</p>
+                                        <p class="text-sm font-bold text-gray-700">${formattedBirthDay}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">🎓</div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 font-bold uppercase">Trình độ</p>
+                                        <p class="text-sm font-bold text-gray-700">${profile.profession_level || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">👤</div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 font-bold uppercase">Dân tộc</p>
+                                        <p class="text-sm font-bold text-gray-700">${profile.ethnicity || 'Kinh'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+                <div class="space-y-10">
+                    ${profile.intro ? `<section class="bg-gray-50 p-6 rounded-2xl border border-gray-100"><h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Giới thiệu</h4><p class="text-gray-600 text-sm leading-relaxed italic">"${profile.intro}"</p></section>` : ''}
+                    <section>
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="h-px flex-1 bg-gray-100"></div>
+                            <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400">Tóm tắt quá trình công tác</h4>
+                            <div class="h-px flex-1 bg-gray-100"></div>
+                        </div>
+                        ${careerHtml}
+                    </section>
+                </div>
+            `;
+
+            document.getElementById('modal-body-content').innerHTML = content;
+        }
+
+        window.closeModal = function() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        init();
+    </script>
+</body>
+</html>

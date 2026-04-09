@@ -81,5 +81,10 @@ service cloud.firestore {
       // Allow anyone to read/write profiles
       allow read, write: if true;
     }
+
+    match /political_careers/{careerId} {
+      // Allow anyone to read/write political_careers
+      allow read, write: if true;
+    }
   }
 }

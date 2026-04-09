@@ -60,6 +60,7 @@ export default function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [politicalCareers, setPoliticalCareers] = useState<Record<number, PoliticalCareer[]>>({});
@@ -79,6 +80,16 @@ export default function App() {
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
+
+  const handleLogin = async () => {
+    try {
+      setAuthError(null);
+      await signInWithGoogle();
+    } catch (err: any) {
+      console.error(err);
+      setAuthError(err.message || "Đã xảy ra lỗi khi đăng nhập.");
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -593,6 +604,57 @@ export default function App() {
   }
 
   return (
+    <>
+      {/* Auth Error Modal */}
+      <AnimatePresence>
+        {authError && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+            onClick={() => setAuthError(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50">
+                <h3 className="text-xl font-bold text-red-800">Lỗi đăng nhập</h3>
+                <button 
+                  onClick={() => setAuthError(null)}
+                  className="p-2 hover:bg-red-100 rounded-full transition-colors text-red-600"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6">
+                <p className="text-gray-700 mb-4">{authError}</p>
+                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-sm mb-6">
+                  <p className="font-semibold mb-2">Cách khắc phục:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Đảm bảo bạn đã thêm domain của ứng dụng vào danh sách <strong>Authorized domains</strong> trong Firebase Console (Authentication &gt; Settings &gt; Authorized domains).</li>
+                    <li>Domain cần thêm: <br/><code className="bg-blue-100 px-1 rounded break-all">ais-dev-ze3gjlijro6bw4ouhwa7n5-572380466730.asia-southeast1.run.app</code> <br/>và<br/> <code className="bg-blue-100 px-1 rounded break-all">ais-pre-ze3gjlijro6bw4ouhwa7n5-572380466730.asia-southeast1.run.app</code></li>
+                    <li>Kiểm tra xem Google Sign-In đã được bật trong Firebase Authentication chưa.</li>
+                  </ul>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setAuthError(null)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
@@ -680,7 +742,7 @@ export default function App() {
                   </div>
                 ) : (
                   <button 
-                    onClick={signInWithGoogle}
+                    onClick={handleLogin}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
                   >
                     <LogIn size={16} />
@@ -1225,5 +1287,6 @@ export default function App() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

@@ -31,5 +31,10 @@
       "source": "/((?!api|share).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/*.ts": {
+      "includeFiles": "{firebase-applet-config.json,profiles_data.json}"
+    }
+  }
 }

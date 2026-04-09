@@ -1343,66 +1343,68 @@ export default function App() {
               </button>
 
               <div className="flex-1 overflow-y-auto p-6 sm:p-10">
-                {/* Top Section: Avatar + Basic Info */}
-                <div className="flex flex-col items-center w-full gap-8 mb-10">
-                  <div className="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto">
-                    <img
-                      src={selectedProfile.avatar_url}
-                      alt={selectedProfile.name}
-                      className="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100"
-                      referrerPolicy="no-referrer"
-                    />
+                {/* Top Section: Name and Title */}
+                <div className="mb-10">
+                  <div className="mb-8 text-center">
+                    <h2 className="text-3xl font-extrabold text-gray-900 mb-2 uppercase">{selectedProfile.name}</h2>
+                    <p className="text-blue-600 font-bold text-lg leading-snug">
+                      {selectedProfile.main_title}
+                    </p>
                   </div>
-                  
-                  <div className="flex-1 w-full flex flex-col items-center">
-                    <div className="mb-6 text-center">
-                      <h2 className="text-3xl font-extrabold text-gray-900 mb-2">{selectedProfile.name}</h2>
-                      <p className="text-blue-600 font-bold text-lg leading-snug">
-                        {selectedProfile.main_title}
-                      </p>
-                    </div>
 
-                    <section>
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                            <Calendar size={16} />
+                  <div className="flex flex-col md:flex-row gap-8 items-start">
+                    <div className="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">
+                      <img
+                        src={selectedProfile.avatar_url}
+                        alt={selectedProfile.name}
+                        className="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                    
+                    <div className="flex-1 w-full">
+                      <section>
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                              <Calendar size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase">Ngày sinh</p>
+                              <p className="text-sm font-bold text-gray-700">{formatDate(selectedProfile.birth_day)}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Ngày sinh</p>
-                            <p className="text-sm font-bold text-gray-700">{formatDate(selectedProfile.birth_day)}</p>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                              <MapPin size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase">Quê quán</p>
+                              <p className="text-sm font-bold text-gray-700">{selectedProfile.hometown || 'N/A'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                              <GraduationCap size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase">Trình độ</p>
+                              <p className="text-sm font-bold text-gray-700">{selectedProfile.profession_level || 'N/A'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                              <User size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase">Dân tộc</p>
+                              <p className="text-sm font-bold text-gray-700">{selectedProfile.ethnicity || 'Kinh'}</p>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                            <MapPin size={16} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Quê quán</p>
-                            <p className="text-sm font-bold text-gray-700">{selectedProfile.hometown || 'N/A'}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                            <GraduationCap size={16} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Trình độ</p>
-                            <p className="text-sm font-bold text-gray-700">{selectedProfile.profession_level || 'N/A'}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                            <User size={16} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Dân tộc</p>
-                            <p className="text-sm font-bold text-gray-700">{selectedProfile.ethnicity || 'Kinh'}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
+                      </section>
+                    </div>
                   </div>
                 </div>
 

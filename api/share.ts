@@ -1,6 +1,11 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Define __dirname for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { listId } = req.query;
@@ -13,11 +18,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Load Firebase Config
     let config;
     try {
-      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+      const possibleConfigPaths = [
+        path.join(process.cwd(), 'firebase-applet-config.json'),
+        path.join(__dirname, '..', 'firebase-applet-config.json'),
+        path.join(__dirname, 'firebase-applet-config.json')
+      ];
+      
+      let configPath = possibleConfigPaths[0];
+      for (const p of possibleConfigPaths) {
+        if (fs.existsSync(p)) {
+          configPath = p;
+          break;
+        }
+      }
+
+      if (!fs.existsSync(configPath)) {
+        throw new Error(`Firebase config not found. Searched in: ${possibleConfigPaths.join(', ')}`);
+      }
+
       config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     } catch (e) {
       console.error('Config read error:', e);
-      return res.status(500).send('Lỗi cấu hình hệ thống: Không tìm thấy file cấu hình Firebase.');
+      return res.status(500).send('Lỗi cấu hình hệ thống: ' + (e as Error).message);
     }
     
     const projectId = config.projectId;
@@ -58,10 +80,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Load local profiles data to speed up lookup
     let localProfiles: any[] = [];
     try {
-      const profilesPath = path.join(process.cwd(), 'profiles_data.json');
+      // Try multiple possible paths for the JSON files in Vercel environment
+      const possiblePaths = [
+        path.join(process.cwd(), 'profiles_data.json'),
+        path.join(__dirname, '..', 'profiles_data.json'),
+        path.join(__dirname, 'profiles_data.json')
+      ];
+      
+      let profilesPath = possiblePaths[0];
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          profilesPath = p;
+          break;
+        }
+      }
+
       if (fs.existsSync(profilesPath)) {
         const localData = JSON.parse(fs.readFileSync(profilesPath, 'utf-8'));
         localProfiles = localData.profiles || [];
+      } else {
+        console.warn('profiles_data.json not found in any expected path');
       }
     } catch (e) {
       console.error('Local profiles read error:', e);
@@ -71,15 +109,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const profiles: any[] = [];
     const careers: Record<number, any[]> = {};
     
-    // Limit concurrency to avoid timeouts/crashes
-    const fetchProfileData = async (id: any) => {
+    // Helper for fetch with timeout
+    const fetchWithTimeout = async (url: string, options: any = {}, timeout = 5000) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
       try {
-        // 1. Try local data first
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+      } catch (e) {
+        clearTimeout(id);
+        throw e;
+      }
+    };
+
+    // 1. Get all profile data (local or Firestore)
+    await Promise.all(profileIds.map(async (id: any) => {
+      try {
         let pData = localProfiles.find(p => p.id === id || p.id === parseInt(id));
         
-        // 2. If not found locally, fetch from Firestore
         if (!pData) {
-          const pRes = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/profiles/${id}`);
+          const pRes = await fetchWithTimeout(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/profiles/${id}`);
           if (pRes.ok) {
             const pDoc = await pRes.json();
             pData = extract(pDoc.fields);
@@ -90,29 +140,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (pData) {
           if (!pData.id) pData.id = id;
           profiles.push(pData);
-          
-          // 3. Fetch career from external API (only if needed or always?)
-          // To keep it fast, we could skip this if it's too slow, but the user wants it.
-          const cRes = await fetch(`https://api.daihoidangtoanquoc.vn/api/profiles/get/political-career?profileId=${id}`);
-          if (cRes.ok) {
-            const cData = await cRes.json();
-            careers[id] = cData.data;
-          }
         }
       } catch (e) {
-        console.error(`Error processing profile ${id}:`, e);
+        console.error(`Error fetching profile ${id}:`, e);
+      }
+    }));
+
+    // 2. Fetch careers in parallel with a concurrency limit
+    const fetchCareer = async (id: any) => {
+      try {
+        const cRes = await fetchWithTimeout(`https://api.daihoidangtoanquoc.vn/api/profiles/get/political-career?profileId=${id}`, {}, 3000);
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          careers[id] = cData.data;
+        }
+      } catch (e) {
+        console.error(`Error fetching career for ${id}:`, e);
       }
     };
 
-    // Process in chunks of 10 to avoid hitting limits
-    const chunks = [];
-    for (let i = 0; i < profileIds.length; i += 10) {
-      chunks.push(profileIds.slice(i, i + 10));
-    }
-
-    for (const chunk of chunks) {
-      await Promise.all(chunk.map(id => fetchProfileData(id)));
-    }
+    // Limit career fetching to avoid hitting Vercel timeout (max 30 profiles for careers)
+    const careerIds = profiles.slice(0, 30).map(p => p.id);
+    await Promise.all(careerIds.map(id => fetchCareer(id)));
 
     // Generate HTML
     const html = generateCompiledHtml(listData, profiles, careers);
@@ -288,48 +337,50 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
                 : 'N/A';
 
             const content = 
-                '<div class="flex flex-col md:flex-row gap-8 mb-10">' +
-                    '<div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">' +
-                        '<img src="' + profile.avatar_url + '" alt="' + profile.name + '" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">' +
+                '<div class="mb-10">' +
+                    '<div class="mb-8 text-center">' +
+                        '<h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">' + profile.name + '</h2>' +
+                        '<p class="text-blue-600 font-bold text-lg leading-snug">' + profile.main_title + '</p>' +
                     '</div>' +
-                    '<div class="flex-1">' +
-                        '<div class="mb-6 text-center md:text-left">' +
-                            '<h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">' + profile.name + '</h2>' +
-                            '<p class="text-blue-600 font-bold text-lg leading-snug mb-4">' + profile.main_title + '</p>' +
+                    '<div class="flex flex-col md:flex-row gap-8 items-start">' +
+                        '<div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">' +
+                            '<img src="' + profile.avatar_url + '" alt="' + profile.name + '" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">' +
                         '</div>' +
-                        '<section>' +
-                            '<h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>' +
-                            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">' +
-                                '<div class="flex items-center gap-3">' +
-                                    '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">📍</div>' +
-                                    '<div>' +
-                                        '<p class="text-[10px] text-gray-400 font-bold uppercase">Quê quán</p>' +
-                                        '<p class="text-sm font-bold text-gray-700">' + (profile.hometown || 'N/A') + '</p>' +
+                        '<div class="flex-1 w-full">' +
+                            '<section>' +
+                                '<h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>' +
+                                '<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">' +
+                                    '<div class="flex items-center gap-3">' +
+                                        '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">📍</div>' +
+                                        '<div>' +
+                                            '<p class="text-[10px] text-gray-400 font-bold uppercase">Quê quán</p>' +
+                                            '<p class="text-sm font-bold text-gray-700">' + (profile.hometown || 'N/A') + '</p>' +
+                                        '</div>' +
+                                    '</div>' +
+                                    '<div class="flex items-center gap-3">' +
+                                        '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">📅</div>' +
+                                        '<div>' +
+                                            '<p class="text-[10px] text-gray-400 font-bold uppercase">Ngày sinh</p>' +
+                                            '<p class="text-sm font-bold text-gray-700">' + formattedBirthDay + '</p>' +
+                                        '</div>' +
+                                    '</div>' +
+                                    '<div class="flex items-center gap-3">' +
+                                        '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">🎓</div>' +
+                                        '<div>' +
+                                            '<p class="text-[10px] text-gray-400 font-bold uppercase">Trình độ</p>' +
+                                            '<p class="text-sm font-bold text-gray-700">' + (profile.profession_level || 'N/A') + '</p>' +
+                                        '</div>' +
+                                    '</div>' +
+                                    '<div class="flex items-center gap-3">' +
+                                        '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">👤</div>' +
+                                        '<div>' +
+                                            '<p class="text-[10px] text-gray-400 font-bold uppercase">Dân tộc</p>' +
+                                            '<p class="text-sm font-bold text-gray-700">' + (profile.ethnicity || 'Kinh') + '</p>' +
+                                        '</div>' +
                                     '</div>' +
                                 '</div>' +
-                                '<div class="flex items-center gap-3">' +
-                                    '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">📅</div>' +
-                                    '<div>' +
-                                        '<p class="text-[10px] text-gray-400 font-bold uppercase">Ngày sinh</p>' +
-                                        '<p class="text-sm font-bold text-gray-700">' + formattedBirthDay + '</p>' +
-                                    '</div>' +
-                                '</div>' +
-                                '<div class="flex items-center gap-3">' +
-                                    '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">🎓</div>' +
-                                    '<div>' +
-                                        '<p class="text-[10px] text-gray-400 font-bold uppercase">Trình độ</p>' +
-                                        '<p class="text-sm font-bold text-gray-700">' + (profile.profession_level || 'N/A') + '</p>' +
-                                    '</div>' +
-                                '</div>' +
-                                '<div class="flex items-center gap-3">' +
-                                    '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">👤</div>' +
-                                    '<div>' +
-                                        '<p class="text-[10px] text-gray-400 font-bold uppercase">Dân tộc</p>' +
-                                        '<p class="text-sm font-bold text-gray-700">' + (profile.ethnicity || 'Kinh') + '</p>' +
-                                    '</div>' +
-                                '</div>' +
-                            '</div>' +
-                        '</section>' +
+                            '</section>' +
+                        '</div>' +
                     '</div>' +
                 '</div>' +
                 '<div class="space-y-10">' +

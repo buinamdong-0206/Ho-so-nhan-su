@@ -29,10 +29,17 @@ export interface ServerData {
   updatedAt: string;
 }
 
+export interface ProfileGroup {
+  id: string;
+  name: string;
+  profileIds: number[];
+}
+
 export interface CustomList {
   id: string;
   name: string;
   profileIds: number[];
+  groups?: ProfileGroup[];
   userId: string;
   createdAt: string;
 }

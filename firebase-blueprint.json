@@ -8,6 +8,18 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "profileIds": { "type": "array", "items": { "type": "number" } },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "profileIds": { "type": "array", "items": { "type": "number" } }
+            },
+            "required": ["id", "name", "profileIds"]
+          }
+        },
         "userId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

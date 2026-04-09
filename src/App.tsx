@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, User, MapPin, Calendar, GraduationCap, X, Info, Filter, Briefcase, Plus, List, Trash2, ChevronRight, ArrowLeft, GripVertical, Check, RefreshCw, Edit3, Download, ExternalLink, LogIn, LogOut } from 'lucide-react';
-import { Profile, ApiResponse, PoliticalCareer, PoliticalCareerResponse, CustomList, ServerData } from './types';
+import { Profile, ApiResponse, PoliticalCareer, PoliticalCareerResponse, CustomList, ServerData, ProfileGroup } from './types';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -75,7 +75,8 @@ export default function App() {
   const [viewingList, setViewingList] = useState<CustomList | null>(null);
   
   const [newListName, setNewListName] = useState('');
-  const [selectedIdsForNewList, setSelectedIdsForNewList] = useState<number[]>([]);
+  const [selectedGroupsForNewList, setSelectedGroupsForNewList] = useState<ProfileGroup[]>([{ id: 'default', name: 'Chưa phân nhóm', profileIds: [] }]);
+  const [activeGroupIdForNewList, setActiveGroupIdForNewList] = useState<string>('default');
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -143,43 +144,52 @@ export default function App() {
     setSyncProgress({ current: 0, total: profiles.length });
 
     try {
-      for (let i = 0; i < profiles.length; i++) {
-        const profile = profiles[i];
-        let newAvatarUrl = profile.avatar_url;
+      const CHUNK_SIZE = 20;
+      let completed = 0;
 
-        // Upload image to Firebase Storage
-        if (profile.avatar_url && !profile.avatar_url.includes('firebasestorage')) {
-          try {
-            // Fetch image via proxy to avoid CORS
-            const urlObj = new URL(profile.avatar_url);
-            let proxyImageUrl = profile.avatar_url;
-            if (urlObj.hostname === 'cdn.daihoidangtoanquoc.vn') {
-              proxyImageUrl = `/api/proxy-cdn${urlObj.pathname}`;
-            } else if (urlObj.hostname === 'api.daihoidangtoanquoc.vn') {
-              proxyImageUrl = `/api/proxy${urlObj.pathname}`;
-            }
-
-            const imgResponse = await fetch(proxyImageUrl);
-            if (imgResponse.ok) {
-              const blob = await imgResponse.blob();
-              const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-              const { storage } = await import('./firebase');
-              const imageRef = ref(storage, `avatars/${profile.id}.jpg`);
-              await uploadBytes(imageRef, blob);
-              newAvatarUrl = await getDownloadURL(imageRef);
-            } else {
-              console.error(`Failed to fetch image for profile ${profile.id}: ${imgResponse.status}`);
-            }
-          } catch (imgErr) {
-            console.error(`Failed to upload image for profile ${profile.id}`, imgErr);
-          }
-        }
-
-        // Save profile to Firestore
-        const profileToSave = { ...profile, avatar_url: newAvatarUrl };
-        await setDoc(doc(db, 'profiles', profile.id.toString()), profileToSave);
+      for (let i = 0; i < profiles.length; i += CHUNK_SIZE) {
+        const chunk = profiles.slice(i, i + CHUNK_SIZE);
         
-        setSyncProgress({ current: i + 1, total: profiles.length });
+        await Promise.all(chunk.map(async (profile) => {
+          let newAvatarUrl = profile.avatar_url;
+
+          // Upload image to Firebase Storage
+          if (profile.avatar_url && !profile.avatar_url.includes('firebasestorage')) {
+            try {
+              // Fetch image via proxy to avoid CORS
+              const urlObj = new URL(profile.avatar_url);
+              let proxyImageUrl = profile.avatar_url;
+              if (urlObj.hostname === 'cdn.daihoidangtoanquoc.vn') {
+                proxyImageUrl = `/api/proxy-cdn${urlObj.pathname}`;
+              } else if (urlObj.hostname === 'api.daihoidangtoanquoc.vn') {
+                proxyImageUrl = `/api/proxy${urlObj.pathname}`;
+              }
+
+              const imgResponse = await fetch(proxyImageUrl);
+              if (imgResponse.ok) {
+                const blob = await imgResponse.blob();
+                const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+                const { storage } = await import('./firebase');
+                const imageRef = ref(storage, `avatars/${profile.id}.jpg`);
+                await uploadBytes(imageRef, blob);
+                newAvatarUrl = await getDownloadURL(imageRef);
+              } else {
+                console.error(`Failed to fetch image for profile ${profile.id}: ${imgResponse.status}`);
+              }
+            } catch (imgErr) {
+              console.error(`Failed to upload image for profile ${profile.id}`, imgErr);
+            }
+          }
+
+          // Save profile to Firestore
+          const profileToSave = { ...profile, avatar_url: newAvatarUrl };
+          await setDoc(doc(db, 'profiles', profile.id.toString()), profileToSave);
+          
+          completed++;
+          // Use functional state update to avoid stale closures if needed, but since we await Promise.all, it's fine.
+          // However, since they resolve concurrently, we should use functional update to be safe:
+          setSyncProgress(prev => ({ ...prev, current: prev.current + 1 }));
+        }));
       }
       alert('Đồng bộ dữ liệu thành công!');
     } catch (err) {
@@ -295,33 +305,49 @@ export default function App() {
 
   const handleCreateList = async () => {
     if (!newListName.trim() || !currentUser) return;
+    const allProfileIds = selectedGroupsForNewList.flatMap(g => g.profileIds);
     const newList: CustomList = {
       id: Date.now().toString(),
       name: newListName.trim(),
-      profileIds: selectedIdsForNewList,
+      profileIds: allProfileIds,
+      groups: selectedGroupsForNewList,
       userId: currentUser.uid,
       createdAt: new Date().toISOString()
     };
     await saveListToFirestore(newList);
     setNewListName('');
-    setSelectedIdsForNewList([]);
+    setSelectedGroupsForNewList([{ id: 'default', name: 'Chưa phân nhóm', profileIds: [] }]);
+    setActiveGroupIdForNewList('default');
     setIsCreatingList(false);
   };
 
   const handleUpdateList = async () => {
     if (!editingList || !newListName.trim() || !currentUser) return;
-    const updatedList = { ...editingList, name: newListName.trim(), profileIds: selectedIdsForNewList };
+    const allProfileIds = selectedGroupsForNewList.flatMap(g => g.profileIds);
+    const updatedList = { 
+      ...editingList, 
+      name: newListName.trim(), 
+      profileIds: allProfileIds,
+      groups: selectedGroupsForNewList
+    };
     await saveListToFirestore(updatedList);
     setEditingList(null);
     setNewListName('');
-    setSelectedIdsForNewList([]);
+    setSelectedGroupsForNewList([{ id: 'default', name: 'Chưa phân nhóm', profileIds: [] }]);
+    setActiveGroupIdForNewList('default');
   };
 
   const startEditing = (list: CustomList, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingList(list);
     setNewListName(list.name);
-    setSelectedIdsForNewList(list.profileIds);
+    if (list.groups && list.groups.length > 0) {
+      setSelectedGroupsForNewList(list.groups);
+      setActiveGroupIdForNewList(list.groups[0].id);
+    } else {
+      setSelectedGroupsForNewList([{ id: 'default', name: 'Chưa phân nhóm', profileIds: list.profileIds }]);
+      setActiveGroupIdForNewList('default');
+    }
   };
 
   const exportToHtml = (list: CustomList) => {
@@ -366,6 +392,33 @@ export default function App() {
         </header>
 
         <main class="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12">
+            ${(list.groups && list.groups.length > 0) ? list.groups.map(group => `
+                <div class="mb-12">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-red-600 inline-block">${group.name}</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
+                        ${group.profileIds.map(id => {
+                            const p = listProfiles.find(prof => prof.id === id);
+                            if (!p) return '';
+                            return `
+                            <div class="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group p-5" onclick="openModal(${p.id})">
+                                <div class="mb-4 text-center">
+                                    <h3 class="font-black text-lg text-gray-900 uppercase line-clamp-1">${p.name}</h3>
+                                </div>
+                                <div class="aspect-[4/5] relative overflow-hidden bg-gray-100 rounded-2xl">
+                                    <img src="${p.avatar_url}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                                        <span class="text-white text-sm font-medium">Xem chi tiết</span>
+                                    </div>
+                                </div>
+                                <div class="mt-4 text-center">
+                                    <p class="text-[11px] text-red-600 font-bold">${p.main_title}</p>
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `).join('') : `
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
                 ${listProfiles.map(p => `
                     <div class="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group p-5" onclick="openModal(${p.id})">
@@ -384,6 +437,7 @@ export default function App() {
                     </div>
                 `).join('')}
             </div>
+            `}
         </main>
     </div>
 
@@ -527,10 +581,26 @@ export default function App() {
     if (viewingList?.id === id) setViewingList(null);
   };
 
-  const toggleProfileInNewList = (id: number) => {
-    setSelectedIdsForNewList(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+  const toggleProfileInNewList = (profileId: number) => {
+    setSelectedGroupsForNewList(prev => {
+      const newGroups = [...prev];
+      const activeGroupIndex = newGroups.findIndex(g => g.id === activeGroupIdForNewList);
+      if (activeGroupIndex === -1) return prev;
+
+      let isInActiveGroup = newGroups[activeGroupIndex].profileIds.includes(profileId);
+      
+      // Remove from all groups first
+      for (let i = 0; i < newGroups.length; i++) {
+        newGroups[i] = { ...newGroups[i], profileIds: newGroups[i].profileIds.filter(id => id !== profileId) };
+      }
+
+      // If it was NOT in the active group, we add it to the active group.
+      if (!isInActiveGroup) {
+        newGroups[activeGroupIndex].profileIds.push(profileId);
+      }
+
+      return newGroups;
+    });
   };
 
   const formatDate = (dateNum: number | null) => {
@@ -871,11 +941,7 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <footer className="bg-white border-t border-gray-200 py-6 px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-sm text-gray-500">
-            <p>© 2026 Hồ sơ nhân sự. Dữ liệu được cung cấp bởi Đại hội Đảng toàn quốc.</p>
-          </div>
-        </footer>
+        {/* Removed redundant footer */}
       </div>
 
       {/* Create/Edit List Modal */}
@@ -922,54 +988,138 @@ export default function App() {
 
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-bold text-gray-700">Thứ tự hiển thị (Kéo thả hoặc chọn để thêm)</label>
-                    <span className="text-xs text-gray-400">Người đầu tiên sẽ hiện ở đầu danh sách</span>
+                    <label className="block text-sm font-bold text-gray-700">Các nhóm nhân sự</label>
+                    <button 
+                      onClick={() => {
+                        const newId = Date.now().toString();
+                        setSelectedGroupsForNewList(prev => [...prev, { id: newId, name: 'Nhóm mới', profileIds: [] }]);
+                        setActiveGroupIdForNewList(newId);
+                      }}
+                      className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1"
+                    >
+                      <Plus size={14} /> Thêm nhóm
+                    </button>
                   </div>
                   
-                  {selectedIdsForNewList.length > 0 && (
-                    <div className="mb-6 space-y-2 bg-gray-50 p-3 rounded-2xl border border-dashed border-gray-200">
-                      {selectedIdsForNewList.map((id, index) => {
-                        const p = profiles.find(prof => prof.id === id);
-                        if (!p) return null;
-                        return (
-                          <div key={id} className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex flex-col gap-1">
-                              <button 
-                                onClick={() => {
-                                  if (index === 0) return;
-                                  const newList = [...selectedIdsForNewList];
-                                  [newList[index-1], newList[index]] = [newList[index], newList[index-1]];
-                                  setSelectedIdsForNewList(newList);
-                                }}
-                                className="p-0.5 hover:bg-gray-100 rounded text-gray-400"
-                              >
-                                <ChevronRight size={14} className="-rotate-90" />
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  if (index === selectedIdsForNewList.length - 1) return;
-                                  const newList = [...selectedIdsForNewList];
-                                  [newList[index], newList[index+1]] = [newList[index+1], newList[index]];
-                                  setSelectedIdsForNewList(newList);
-                                }}
-                                className="p-0.5 hover:bg-gray-100 rounded text-gray-400"
-                              >
-                                <ChevronRight size={14} className="rotate-90" />
-                              </button>
-                            </div>
-                            <img src={p.avatar_url} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-                            <span className="flex-1 text-sm font-medium truncate">{p.name}</span>
+                  <div className="space-y-4 mb-6">
+                    {selectedGroupsForNewList.map((group, groupIndex) => (
+                      <div key={group.id} className={`border rounded-2xl p-4 transition-all ${activeGroupIdForNewList === group.id ? 'border-blue-400 bg-blue-50/30' : 'border-gray-200 bg-gray-50'}`}>
+                        <div className="flex items-center gap-3 mb-3">
+                          <input 
+                            type="text"
+                            value={group.name}
+                            onChange={(e) => {
+                              setSelectedGroupsForNewList(prev => {
+                                const newGroups = [...prev];
+                                newGroups[groupIndex] = { ...newGroups[groupIndex], name: e.target.value };
+                                return newGroups;
+                              });
+                            }}
+                            onClick={() => setActiveGroupIdForNewList(group.id)}
+                            className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                          <div className="flex items-center gap-1">
                             <button 
-                              onClick={() => toggleProfileInNewList(id)}
-                              className="p-1.5 text-gray-400 hover:text-red-500"
+                              onClick={() => {
+                                if (groupIndex === 0) return;
+                                setSelectedGroupsForNewList(prev => {
+                                  const newGroups = [...prev];
+                                  [newGroups[groupIndex-1], newGroups[groupIndex]] = [newGroups[groupIndex], newGroups[groupIndex-1]];
+                                  return newGroups;
+                                });
+                              }}
+                              className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-500"
                             >
-                              <X size={14} />
+                              <ChevronRight size={16} className="-rotate-90" />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (groupIndex === selectedGroupsForNewList.length - 1) return;
+                                setSelectedGroupsForNewList(prev => {
+                                  const newGroups = [...prev];
+                                  [newGroups[groupIndex], newGroups[groupIndex+1]] = [newGroups[groupIndex+1], newGroups[groupIndex]];
+                                  return newGroups;
+                                });
+                              }}
+                              className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-500"
+                            >
+                              <ChevronRight size={16} className="rotate-90" />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (selectedGroupsForNewList.length <= 1) return;
+                                setSelectedGroupsForNewList(prev => prev.filter(g => g.id !== group.id));
+                                if (activeGroupIdForNewList === group.id) {
+                                  setActiveGroupIdForNewList(selectedGroupsForNewList[0].id === group.id ? selectedGroupsForNewList[1].id : selectedGroupsForNewList[0].id);
+                                }
+                              }}
+                              className="p-1.5 hover:bg-red-100 hover:text-red-600 rounded-lg text-gray-500"
+                            >
+                              <Trash2 size={16} />
                             </button>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        </div>
+
+                        {/* Profiles in group */}
+                        <div className="space-y-2">
+                          {group.profileIds.length === 0 ? (
+                            <div className="text-sm text-gray-400 italic py-2 text-center border-2 border-dashed border-gray-200 rounded-xl cursor-pointer" onClick={() => setActiveGroupIdForNewList(group.id)}>
+                              Chưa có nhân sự. Chọn ở danh sách bên dưới để thêm vào nhóm này.
+                            </div>
+                          ) : (
+                            group.profileIds.map((id, index) => {
+                              const p = profiles.find(prof => prof.id === id);
+                              if (!p) return null;
+                              return (
+                                <div key={id} className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                                  <div className="flex flex-col gap-1">
+                                    <button 
+                                      onClick={() => {
+                                        if (index === 0) return;
+                                        setSelectedGroupsForNewList(prev => {
+                                          const newGroups = [...prev];
+                                          const newProfileIds = [...newGroups[groupIndex].profileIds];
+                                          [newProfileIds[index-1], newProfileIds[index]] = [newProfileIds[index], newProfileIds[index-1]];
+                                          newGroups[groupIndex] = { ...newGroups[groupIndex], profileIds: newProfileIds };
+                                          return newGroups;
+                                        });
+                                      }}
+                                      className="p-0.5 hover:bg-gray-100 rounded text-gray-400"
+                                    >
+                                      <ChevronRight size={14} className="-rotate-90" />
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        if (index === group.profileIds.length - 1) return;
+                                        setSelectedGroupsForNewList(prev => {
+                                          const newGroups = [...prev];
+                                          const newProfileIds = [...newGroups[groupIndex].profileIds];
+                                          [newProfileIds[index], newProfileIds[index+1]] = [newProfileIds[index+1], newProfileIds[index]];
+                                          newGroups[groupIndex] = { ...newGroups[groupIndex], profileIds: newProfileIds };
+                                          return newGroups;
+                                        });
+                                      }}
+                                      className="p-0.5 hover:bg-gray-100 rounded text-gray-400"
+                                    >
+                                      <ChevronRight size={14} className="rotate-90" />
+                                    </button>
+                                  </div>
+                                  <img src={p.avatar_url} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
+                                  <span className="flex-1 text-sm font-medium truncate">{p.name}</span>
+                                  <button 
+                                    onClick={() => toggleProfileInNewList(id)}
+                                    className="p-1.5 text-gray-400 hover:text-red-500"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
 
                   <div className="flex items-center justify-between mb-3">
                     <label className="block text-sm font-bold text-gray-700">Chọn nhân sự bổ sung</label>
@@ -991,26 +1141,29 @@ export default function App() {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1">
-                    {profiles.map(p => (
-                      <div 
-                        key={p.id}
-                        data-name={p.name}
-                        onClick={() => toggleProfileInNewList(p.id)}
-                        className={`selection-item flex items-center gap-3 p-2 rounded-xl border cursor-pointer transition-all ${selectedIdsForNewList.includes(p.id) ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100 hover:border-gray-300'}`}
-                      >
-                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                          <img src={p.avatar_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold truncate">{p.name}</p>
-                        </div>
-                        {selectedIdsForNewList.includes(p.id) && (
-                          <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white">
-                            <Check size={12} />
+                    {profiles.map(p => {
+                      const isSelected = selectedGroupsForNewList.some(g => g.profileIds.includes(p.id));
+                      return (
+                        <div 
+                          key={p.id}
+                          data-name={p.name}
+                          onClick={() => toggleProfileInNewList(p.id)}
+                          className={`selection-item flex items-center gap-3 p-2 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100 hover:border-gray-300'}`}
+                        >
+                          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                            <img src={p.avatar_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold truncate">{p.name}</p>
+                          </div>
+                          {isSelected && (
+                            <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                              <Check size={12} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -1027,7 +1180,7 @@ export default function App() {
                 </button>
                 <button 
                   onClick={editingList ? handleUpdateList : handleCreateList}
-                  disabled={!newListName.trim() || selectedIdsForNewList.length === 0}
+                  disabled={!newListName.trim() || selectedGroupsForNewList.flatMap(g => g.profileIds).length === 0}
                   className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingList ? 'Cập nhật' : 'Tạo danh sách'}
@@ -1073,51 +1226,107 @@ export default function App() {
             </header>
 
             <main className="flex-1 overflow-y-auto p-6 md:p-12">
-              <div className="max-w-full mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
-                {viewingList.profileIds.map(id => {
-                  const profile = profiles.find(p => p.id === id);
-                  if (!profile) return null;
-                  return (
-                    <motion.div
-                      key={profile.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      whileHover={{ y: -8 }}
-                      className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
-                      onClick={() => setSelectedProfile(profile)}
-                    >
-                      <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
-                        <img
-                          src={profile.avatar_url}
-                          alt={profile.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
-                          <span className="text-white text-sm font-bold flex items-center gap-2">
-                            <Info size={18} /> Xem chi tiết
-                          </span>
-                        </div>
+              <div className="max-w-full mx-auto space-y-12">
+                {(viewingList.groups && viewingList.groups.length > 0) ? (
+                  viewingList.groups.map(group => (
+                    <div key={group.id}>
+                      <h3 className="text-xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-blue-500 inline-block">{group.name}</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
+                        {group.profileIds.map(id => {
+                          const profile = profiles.find(p => p.id === id);
+                          if (!profile) return null;
+                          return (
+                            <motion.div
+                              key={profile.id}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              whileHover={{ y: -8 }}
+                              className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                              onClick={() => setSelectedProfile(profile)}
+                            >
+                              <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
+                                <img
+                                  src={profile.avatar_url}
+                                  alt={profile.name}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                                  <span className="text-white text-sm font-bold flex items-center gap-2">
+                                    <Info size={18} /> Xem chi tiết
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="p-6">
+                                <h3 className="font-bold text-xl text-gray-900 mb-2 line-clamp-1">{profile.name}</h3>
+                                <p className="text-sm text-blue-600 font-bold mb-4 line-clamp-2 h-10">
+                                  {profile.main_title}
+                                </p>
+                                <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
+                                  <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                                    <MapPin size={14} className="text-blue-500" />
+                                    <span className="truncate">{profile.hometown || 'N/A'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                                    <Calendar size={14} className="text-blue-500" />
+                                    <span>{formatDate(profile.birth_day)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
                       </div>
-                      <div className="p-6">
-                        <h3 className="font-bold text-xl text-gray-900 mb-2 line-clamp-1">{profile.name}</h3>
-                        <p className="text-sm text-blue-600 font-bold mb-4 line-clamp-2 h-10">
-                          {profile.main_title}
-                        </p>
-                        <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
-                          <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                            <MapPin size={14} className="text-blue-500" />
-                            <span className="truncate">{profile.hometown || 'N/A'}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
+                    {viewingList.profileIds.map(id => {
+                      const profile = profiles.find(p => p.id === id);
+                      if (!profile) return null;
+                      return (
+                        <motion.div
+                          key={profile.id}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          whileHover={{ y: -8 }}
+                          className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                          onClick={() => setSelectedProfile(profile)}
+                        >
+                          <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
+                            <img
+                              src={profile.avatar_url}
+                              alt={profile.name}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                              <span className="text-white text-sm font-bold flex items-center gap-2">
+                                <Info size={18} /> Xem chi tiết
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                            <Calendar size={14} className="text-blue-500" />
-                            <span>{formatDate(profile.birth_day)}</span>
+                          <div className="p-6">
+                            <h3 className="font-bold text-xl text-gray-900 mb-2 line-clamp-1">{profile.name}</h3>
+                            <p className="text-sm text-blue-600 font-bold mb-4 line-clamp-2 h-10">
+                              {profile.main_title}
+                            </p>
+                            <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
+                              <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                                <MapPin size={14} className="text-blue-500" />
+                                <span className="truncate">{profile.hometown || 'N/A'}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                                <Calendar size={14} className="text-blue-500" />
+                                <span>{formatDate(profile.birth_day)}</span>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </main>
 

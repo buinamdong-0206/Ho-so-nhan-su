@@ -12,6 +12,7 @@ service cloud.firestore {
     //   - id: string (required) - Unique identifier for the list
     //   - name: string (required, < 100 chars) - Name of the list
     //   - profileIds: list of numbers (required, max 500) - Array of profile IDs
+    //   - groups: list of objects (optional, max 50) - Array of groups
     //   - userId: string (required, immutable) - ID of the user who created the list
     //   - createdAt: string (required, immutable) - Creation timestamp
     //
@@ -62,10 +63,11 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
     function isValidCustomList(data) {
-      return hasOnlyAllowedFields(['id', 'name', 'profileIds', 'userId', 'createdAt']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'profileIds', 'groups', 'userId', 'createdAt']) &&
              isValidStringLength('id', 1, 100) &&
              isValidStringLength('name', 1, 100) &&
              data.profileIds is list && data.profileIds.size() <= 500 &&
+             (!('groups' in data) || (data.groups is list && data.groups.size() <= 50)) &&
              data.userId is string && data.userId.size() > 0 &&
              data.createdAt is string;
     }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, User, MapPin, Calendar, GraduationCap, X, Info, Filter, Briefcase, Plus, List, Trash2, ChevronRight, ArrowLeft, GripVertical, Check, RefreshCw, Edit3, Download, ExternalLink, LogIn, LogOut } from 'lucide-react';
 import { Profile, ApiResponse, PoliticalCareer, PoliticalCareerResponse, CustomList, ServerData, ProfileGroup } from './types';
-import { auth, db, signInWithGoogle, logOut } from './firebase';
+import { auth, db, signInWithGoogle, logOut, handleRedirectResult } from './firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -93,6 +93,12 @@ export default function App() {
   };
 
   useEffect(() => {
+    handleRedirectResult().then((result) => {
+      if (result) {
+        setCurrentUser(result.user);
+      }
+    });
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
     });
@@ -1210,11 +1216,54 @@ export default function App() {
               </div>
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => exportToHtml(viewingList)}
+                  onClick={() => {
+                    const newWindow = window.open('', '_blank', 'width=1200,height=900');
+                    if (newWindow) {
+                      newWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>${viewingList.name}</title>
+                            <script src="https://cdn.tailwindcss.com"></script>
+                            <style>
+                              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap');
+                              body { font-family: 'Inter', sans-serif; }
+                            </style>
+                          </head>
+                          <body class="bg-gray-50 p-6 md:p-12">
+                            <div class="max-w-7xl mx-auto">
+                              <h1 class="text-4xl font-extrabold text-gray-900 mb-12 text-center">${viewingList.name}</h1>
+                              
+                              ${(viewingList.groups || []).map(group => `
+                                <div class="mb-12 flex flex-col items-center">
+                                  <h3 class="text-xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-blue-500 inline-block text-center">${group.name}</h3>
+                                  <div class="flex flex-wrap justify-center gap-8 w-full">
+                                    ${group.profileIds.map(id => {
+                                      const profile = profiles.find(p => p.id === id);
+                                      if (!profile) return '';
+                                      return `
+                                        <div class="w-full max-w-sm bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all p-6 flex flex-col items-center text-center">
+                                          <div class="aspect-[4/5] w-full relative overflow-hidden bg-gray-100 rounded-2xl mb-4">
+                                            <img src="${profile.avatar_url}" alt="${profile.name}" class="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                          </div>
+                                          <h3 class="font-bold text-xl text-gray-900 mb-2">${profile.name}</h3>
+                                          <p class="text-sm text-blue-600 font-bold mb-4">${profile.main_title}</p>
+                                        </div>
+                                      `;
+                                    }).join('')}
+                                  </div>
+                                </div>
+                              `).join('')}
+                            </div>
+                          </body>
+                        </html>
+                      `);
+                      newWindow.document.close();
+                    }
+                  }}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-sm"
                 >
-                  <Download size={18} />
-                  <span className="hidden sm:inline">Xuất HTML</span>
+                  <ExternalLink size={18} />
+                  <span className="hidden sm:inline">Mở trang mới</span>
                 </button>
                 <button 
                   onClick={() => setViewingList(null)}
@@ -1229,9 +1278,9 @@ export default function App() {
               <div className="max-w-full mx-auto space-y-12">
                 {(viewingList.groups && viewingList.groups.length > 0) ? (
                   viewingList.groups.map(group => (
-                    <div key={group.id}>
-                      <h3 className="text-xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-blue-500 inline-block">{group.name}</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
+                      <div key={group.id} className="flex flex-col items-center w-full">
+                        <h3 className="text-xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-blue-500 inline-block text-center">{group.name}</h3>
+                        <div className="flex flex-wrap justify-center gap-8 w-full max-w-7xl mx-auto">
                         {group.profileIds.map(id => {
                           const profile = profiles.find(p => p.id === id);
                           if (!profile) return null;
@@ -1241,7 +1290,7 @@ export default function App() {
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
                               whileHover={{ y: -8 }}
-                              className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                              className="w-full max-w-sm bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col"
                               onClick={() => setSelectedProfile(profile)}
                             >
                               <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
@@ -1257,7 +1306,7 @@ export default function App() {
                                   </span>
                                 </div>
                               </div>
-                              <div className="p-6">
+                              <div className="p-6 flex flex-col items-center text-center">
                                 <h3 className="font-bold text-xl text-gray-900 mb-2 line-clamp-1">{profile.name}</h3>
                                 <p className="text-sm text-blue-600 font-bold mb-4 line-clamp-2 h-10">
                                   {profile.main_title}
@@ -1280,7 +1329,7 @@ export default function App() {
                     </div>
                   ))
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 justify-items-center">
                     {viewingList.profileIds.map(id => {
                       const profile = profiles.find(p => p.id === id);
                       if (!profile) return null;
@@ -1290,7 +1339,7 @@ export default function App() {
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           whileHover={{ y: -8 }}
-                          className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                          className="w-full max-w-sm bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
                           onClick={() => setSelectedProfile(profile)}
                         >
                           <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
@@ -1306,7 +1355,7 @@ export default function App() {
                               </span>
                             </div>
                           </div>
-                          <div className="p-6">
+                          <div className="p-6 flex flex-col items-center text-center">
                             <h3 className="font-bold text-xl text-gray-900 mb-2 line-clamp-1">{profile.name}</h3>
                             <p className="text-sm text-blue-600 font-bold mb-4 line-clamp-2 h-10">
                               {profile.main_title}
@@ -1365,8 +1414,8 @@ export default function App() {
 
               <div className="flex-1 overflow-y-auto p-6 sm:p-10">
                 {/* Top Section: Avatar + Basic Info */}
-                <div className="flex flex-col md:flex-row gap-8 mb-10">
-                  <div className="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">
+                <div className="flex flex-col items-center w-full gap-8 mb-10">
+                  <div className="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto">
                     <img
                       src={selectedProfile.avatar_url}
                       alt={selectedProfile.name}
@@ -1375,8 +1424,8 @@ export default function App() {
                     />
                   </div>
                   
-                  <div className="flex-1">
-                    <div className="mb-6 text-center md:text-left">
+                  <div className="flex-1 w-full flex flex-col items-center">
+                    <div className="mb-6 text-center">
                       <h2 className="text-3xl font-extrabold text-gray-900 mb-2">{selectedProfile.name}</h2>
                       <p className="text-blue-600 font-bold text-lg leading-snug">
                         {selectedProfile.main_title}

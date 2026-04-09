@@ -33,6 +33,7 @@ export interface ProfileGroup {
   id: string;
   name: string;
   profileIds: number[];
+  customTitles?: Record<number, string>;
 }
 
 export interface CustomList {
@@ -40,6 +41,7 @@ export interface CustomList {
   name: string;
   profileIds: number[];
   groups?: ProfileGroup[];
+  customTitles?: Record<number, string>;
   userId: string;
   createdAt: string;
 }

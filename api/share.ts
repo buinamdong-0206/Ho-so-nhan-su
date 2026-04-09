@@ -190,6 +190,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
     const profilesData = escapeForTemplate(safeJson(profiles));
     const careersData = escapeForTemplate(safeJson(careers));
     const groupsData = escapeForTemplate(safeJson(list.groups || []));
+    const listCustomTitles = escapeForTemplate(safeJson(list.customTitles || {}));
     const listName = list.name || 'Danh sách nhân sự';
     
     return `
@@ -229,10 +230,6 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
 
         <main id="main-content" class="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12">
         </main>
-
-        <footer class="bg-white border-t border-gray-200 py-8 text-center text-sm text-gray-500">
-            <p>© 2026 Hồ sơ nhân sự. Dữ liệu được cung cấp bởi Đại hội Đảng toàn quốc.</p>
-        </footer>
     </div>
 
     <div id="modal-overlay" onclick="closeModal(event)">
@@ -252,54 +249,57 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
         const profiles = ${profilesData};
         const careers = ${careersData};
         const groups = ${groupsData};
+        const listCustomTitles = ${listCustomTitles};
 
         function renderContent() {
             const container = document.getElementById('main-content');
             if (groups.length > 0) {
                 groups.forEach(group => {
                     const groupDiv = document.createElement('div');
-                    groupDiv.className = "text-center mb-16";
+                    groupDiv.className = "text-center mb-16 w-full";
                     groupDiv.innerHTML = '<h3 class="text-xl font-bold text-gray-900 mb-8 pb-2 border-b-2 border-blue-500 inline-block">' + group.name + '</h3>';
                     
-                    const flexContainer = document.createElement('div');
-                    flexContainer.className = "flex flex-wrap justify-center gap-6";
+                    const gridContainer = document.createElement('div');
+                    gridContainer.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6";
                     
                     group.profileIds.forEach(id => {
                         const p = profiles.find(prof => prof.id === id);
                         if (p) {
-                            flexContainer.appendChild(createProfileCard(p));
+                            const customTitle = (group.customTitles && (group.customTitles[id] || group.customTitles[id.toString()])) || (listCustomTitles && (listCustomTitles[id] || listCustomTitles[id.toString()])) || p.main_title;
+                            gridContainer.appendChild(createProfileCard(p, customTitle));
                         }
                     });
                     
-                    groupDiv.appendChild(flexContainer);
+                    groupDiv.appendChild(gridContainer);
                     container.appendChild(groupDiv);
                 });
             } else {
-                const flexContainer = document.createElement('div');
-                flexContainer.className = "flex flex-wrap justify-center gap-6";
+                const gridContainer = document.createElement('div');
+                gridContainer.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6";
                 profiles.forEach(p => {
-                    flexContainer.appendChild(createProfileCard(p));
+                    const customTitle = (listCustomTitles && (listCustomTitles[p.id] || listCustomTitles[p.id.toString()])) || p.main_title;
+                    gridContainer.appendChild(createProfileCard(p, customTitle));
                 });
-                container.appendChild(flexContainer);
+                container.appendChild(gridContainer);
             }
         }
 
-        function createProfileCard(p) {
+        function createProfileCard(p, displayTitle) {
             const card = document.createElement('div');
-            card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group w-[140px] sm:w-[160px] md:w-[180px]";
-            card.onclick = () => openModal(p.id);
+            card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group h-full";
+            card.onclick = () => openModal(p.id, displayTitle);
             card.innerHTML = 
                 '<div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">' +
                     '<img src="' + p.avatar_url + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
                 '</div>' +
-                '<div class="w-full px-1">' +
-                    '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 line-clamp-2 min-h-[2.5rem] flex items-center justify-center">' + p.name + '</h4>' +
-                    '<p class="text-[10px] text-blue-600 font-bold leading-tight uppercase line-clamp-3">' + p.main_title + '</p>' +
+                '<div class="w-full px-1 flex flex-col flex-1">' +
+                    '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 flex items-center justify-center">' + p.name + '</h4>' +
+                    '<p class="text-[10px] text-blue-600 font-bold leading-tight uppercase flex-1">' + displayTitle + '</p>' +
                 '</div>';
             return card;
         }
 
-        function openModal(id) {
+        function openModal(id, displayTitle) {
             const profile = profiles.find(p => p.id === id);
             if (!profile) return;
 
@@ -340,7 +340,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
                 '<div class="mb-10">' +
                     '<div class="mb-8 text-center">' +
                         '<h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">' + profile.name + '</h2>' +
-                        '<p class="text-blue-600 font-bold text-lg leading-snug">' + profile.main_title + '</p>' +
+                        '<p class="text-blue-600 font-bold text-lg leading-snug">' + displayTitle + '</p>' +
                     '</div>' +
                     '<div class="flex flex-col md:flex-row gap-8 items-start">' +
                         '<div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">' +

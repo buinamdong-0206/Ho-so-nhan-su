@@ -331,6 +331,7 @@ export default function App() {
     const profilesData = JSON.stringify(listProfiles);
     const careersData = JSON.stringify(listCareers);
     const groupsData = JSON.stringify(list.groups || []);
+    const listCustomTitles = JSON.stringify(list.customTitles || {});
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -371,10 +372,6 @@ export default function App() {
         <main id="main-content" class="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12">
             <!-- Content will be injected by JS -->
         </main>
-
-        <footer class="bg-white border-t border-gray-200 py-8 text-center text-sm text-gray-500">
-            <p>© 2026 Hồ sơ nhân sự. Dữ liệu được cung cấp bởi Đại hội Đảng toàn quốc.</p>
-        </footer>
     </div>
 
     <!-- Modal Structure -->
@@ -396,6 +393,7 @@ export default function App() {
         const profiles = ${profilesData};
         const careers = ${careersData};
         const groups = ${groupsData};
+        const listCustomTitles = ${listCustomTitles};
 
         function renderContent() {
             const container = document.getElementById('main-content');
@@ -411,7 +409,8 @@ export default function App() {
                     group.profileIds.forEach(id => {
                         const p = profiles.find(prof => prof.id === id);
                         if (p) {
-                            flexContainer.appendChild(createProfileCard(p));
+                            const customTitle = (group.customTitles && (group.customTitles[id] || group.customTitles[id.toString()])) || (listCustomTitles && (listCustomTitles[id] || listCustomTitles[id.toString()])) || p.main_title;
+                            flexContainer.appendChild(createProfileCard(p, customTitle));
                         }
                     });
                     
@@ -422,28 +421,29 @@ export default function App() {
                 const flexContainer = document.createElement('div');
                 flexContainer.className = "flex flex-wrap justify-center gap-6";
                 profiles.forEach(p => {
-                    flexContainer.appendChild(createProfileCard(p));
+                    const customTitle = (listCustomTitles && (listCustomTitles[p.id] || listCustomTitles[p.id.toString()])) || p.main_title;
+                    flexContainer.appendChild(createProfileCard(p, customTitle));
                 });
                 container.appendChild(flexContainer);
             }
         }
 
-        function createProfileCard(p) {
+        function createProfileCard(p, displayTitle) {
             const card = document.createElement('div');
             card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group w-[140px] sm:w-[160px] md:w-[180px]";
-            card.onclick = () => openModal(p.id);
+            card.onclick = () => openModal(p.id, displayTitle);
             card.innerHTML = 
                 '<div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">' +
                     '<img src="' + p.avatar_url + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
                 '</div>' +
                 '<div class="w-full px-1">' +
-                    '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 line-clamp-2 min-h-[2.5rem] flex items-center justify-center">' + p.name + '</h4>' +
-                    '<p class="text-[10px] text-blue-600 font-bold leading-tight uppercase line-clamp-3">' + p.main_title + '</p>' +
+                    '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 flex items-center justify-center">' + p.name + '</h4>' +
+                    '<p class="text-[10px] text-blue-600 font-bold leading-tight uppercase">' + displayTitle + '</p>' +
                 '</div>';
             return card;
         }
 
-        function openModal(id) {
+        function openModal(id, displayTitle) {
             const profile = profiles.find(p => p.id === id);
             if (!profile) return;
 
@@ -488,7 +488,7 @@ export default function App() {
                     '<div class="flex-1">' +
                         '<div class="mb-6 text-center md:text-left">' +
                             '<h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">' + profile.name + '</h2>' +
-                            '<p class="text-blue-600 font-bold text-lg leading-snug mb-4">' + profile.main_title + '</p>' +
+                            '<p class="text-blue-600 font-bold text-lg leading-snug mb-4">' + displayTitle + '</p>' +
                         '</div>' +
                         '<section>' +
                             '<h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>' +
@@ -890,7 +890,13 @@ export default function App() {
                   <div className="p-4">
                     <h3 className="font-bold text-lg text-gray-900 mb-1 line-clamp-1">{profile.name}</h3>
                     <p className="text-sm text-blue-600 font-medium mb-3 line-clamp-2 h-10">
-                      {profile.main_title}
+                      {(() => {
+                        if (activeList) {
+                          const group = activeList.groups?.find(g => g.profileIds.includes(profile.id));
+                          return group?.customTitles?.[profile.id] || group?.customTitles?.[profile.id.toString()] || activeList.customTitles?.[profile.id] || activeList.customTitles?.[profile.id.toString()] || profile.main_title;
+                        }
+                        return profile.main_title;
+                      })()}
                     </p>
                     <div className="flex flex-col gap-2 pt-3 border-t border-gray-100">
                       <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -1084,7 +1090,25 @@ export default function App() {
                                     </button>
                                   </div>
                                   <img src={p.avatar_url} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-                                  <span className="flex-1 text-sm font-medium truncate">{p.name}</span>
+                                  <div className="flex-1 min-w-0 flex flex-col">
+                                    <span className="text-sm font-bold truncate">{p.name}</span>
+                                    <input 
+                                      type="text"
+                                      placeholder="Chức vụ hiển thị..."
+                                      value={group.customTitles?.[id] ?? group.customTitles?.[id.toString()] ?? p.main_title}
+                                      onChange={(e) => {
+                                        const newTitle = e.target.value;
+                                        setSelectedGroupsForNewList(prev => {
+                                          const newGroups = [...prev];
+                                          const currentTitles = { ...(newGroups[groupIndex].customTitles || {}) };
+                                          currentTitles[id] = newTitle;
+                                          newGroups[groupIndex] = { ...newGroups[groupIndex], customTitles: currentTitles };
+                                          return newGroups;
+                                        });
+                                      }}
+                                      className="text-[10px] text-blue-600 bg-transparent border-none p-0 focus:ring-0 outline-none w-full"
+                                    />
+                                  </div>
                                   <button 
                                     onClick={() => toggleProfileInNewList(id)}
                                     className="p-1.5 text-gray-400 hover:text-red-500"
@@ -1210,7 +1234,7 @@ export default function App() {
                   viewingList.groups.map(group => (
                       <div key={group.id} className="flex flex-col items-center w-full">
                         <h3 className="text-xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-blue-500 inline-block text-center">{group.name}</h3>
-                        <div className="flex flex-wrap justify-center gap-8 w-full max-w-7xl mx-auto">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 w-full max-w-7xl mx-auto">
                         {group.profileIds.map(id => {
                           const profile = profiles.find(p => p.id === id);
                           if (!profile) return null;
@@ -1220,7 +1244,7 @@ export default function App() {
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
                               whileHover={{ y: -8 }}
-                              className="w-full max-w-sm bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col"
+                              className="w-full bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col h-full"
                               onClick={() => setSelectedProfile(profile)}
                             >
                               <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
@@ -1236,21 +1260,11 @@ export default function App() {
                                   </span>
                                 </div>
                               </div>
-                              <div className="p-6 flex flex-col items-center text-center">
-                                <h3 className="font-bold text-xl text-gray-900 mb-2 line-clamp-1">{profile.name}</h3>
-                                <p className="text-sm text-blue-600 font-bold mb-4 line-clamp-2 h-10">
-                                  {profile.main_title}
+                              <div className="p-6 flex flex-col items-center text-center flex-1">
+                                <h3 className="font-bold text-xl text-gray-900 mb-2">{profile.name}</h3>
+                                <p className="text-sm text-blue-600 font-bold mb-4 flex-1">
+                                  {group.customTitles?.[profile.id] || group.customTitles?.[profile.id.toString()] || viewingList.customTitles?.[profile.id] || viewingList.customTitles?.[profile.id.toString()] || profile.main_title}
                                 </p>
-                                <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
-                                  <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                                    <MapPin size={14} className="text-blue-500" />
-                                    <span className="truncate">{profile.hometown || 'N/A'}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                                    <Calendar size={14} className="text-blue-500" />
-                                    <span>{formatDate(profile.birth_day)}</span>
-                                  </div>
-                                </div>
                               </div>
                             </motion.div>
                           );
@@ -1269,7 +1283,7 @@ export default function App() {
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           whileHover={{ y: -8 }}
-                          className="w-full max-w-sm bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                          className="w-full bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col h-full"
                           onClick={() => setSelectedProfile(profile)}
                         >
                           <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
@@ -1285,21 +1299,11 @@ export default function App() {
                               </span>
                             </div>
                           </div>
-                          <div className="p-6 flex flex-col items-center text-center">
-                            <h3 className="font-bold text-xl text-gray-900 mb-2 line-clamp-1">{profile.name}</h3>
-                            <p className="text-sm text-blue-600 font-bold mb-4 line-clamp-2 h-10">
-                              {profile.main_title}
+                          <div className="p-6 flex flex-col items-center text-center flex-1">
+                            <h3 className="font-bold text-xl text-gray-900 mb-2">{profile.name}</h3>
+                            <p className="text-sm text-blue-600 font-bold mb-4 flex-1">
+                              {viewingList.customTitles?.[profile.id] || viewingList.customTitles?.[profile.id.toString()] || profile.main_title}
                             </p>
-                            <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
-                              <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                                <MapPin size={14} className="text-blue-500" />
-                                <span className="truncate">{profile.hometown || 'N/A'}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                                <Calendar size={14} className="text-blue-500" />
-                                <span>{formatDate(profile.birth_day)}</span>
-                              </div>
-                            </div>
                           </div>
                         </motion.div>
                       );
@@ -1308,12 +1312,6 @@ export default function App() {
                 )}
               </div>
             </main>
-
-            <footer className="bg-white border-t border-gray-200 py-6 px-4 sm:px-6 lg:px-8 mt-auto">
-              <div className="text-center text-sm text-gray-500">
-                <p>© 2026 Hồ sơ nhân sự. Dữ liệu được cung cấp bởi Đại hội Đảng toàn quốc.</p>
-              </div>
-            </footer>
           </div>
         )}
       </AnimatePresence>
@@ -1348,7 +1346,19 @@ export default function App() {
                   <div className="mb-8 text-center">
                     <h2 className="text-3xl font-extrabold text-gray-900 mb-2 uppercase">{selectedProfile.name}</h2>
                     <p className="text-blue-600 font-bold text-lg leading-snug">
-                      {selectedProfile.main_title}
+                      {(() => {
+                        // If we are viewing a list in the modal
+                        if (viewingList) {
+                          const group = viewingList.groups?.find(g => g.profileIds.includes(selectedProfile.id));
+                          return group?.customTitles?.[selectedProfile.id] || group?.customTitles?.[selectedProfile.id.toString()] || viewingList.customTitles?.[selectedProfile.id] || viewingList.customTitles?.[selectedProfile.id.toString()] || selectedProfile.main_title;
+                        }
+                        // If we are in the main dashboard with an active list
+                        if (activeList) {
+                          const group = activeList.groups?.find(g => g.profileIds.includes(selectedProfile.id));
+                          return group?.customTitles?.[selectedProfile.id] || group?.customTitles?.[selectedProfile.id.toString()] || activeList.customTitles?.[selectedProfile.id] || activeList.customTitles?.[selectedProfile.id.toString()] || selectedProfile.main_title;
+                        }
+                        return selectedProfile.main_title;
+                      })()}
                     </p>
                   </div>
 

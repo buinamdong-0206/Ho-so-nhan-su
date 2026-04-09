@@ -55,19 +55,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const listData = extract(listDoc.fields);
     const profileIds = listData.profileIds || [];
     
+    // Load local profiles data to speed up lookup
+    let localProfiles: any[] = [];
+    try {
+      const profilesPath = path.join(process.cwd(), 'profiles_data.json');
+      if (fs.existsSync(profilesPath)) {
+        const localData = JSON.parse(fs.readFileSync(profilesPath, 'utf-8'));
+        localProfiles = localData.profiles || [];
+      }
+    } catch (e) {
+      console.error('Local profiles read error:', e);
+    }
+
     // Fetch all profiles in the list
     const profiles: any[] = [];
     const careers: Record<number, any[]> = {};
     
-    await Promise.all(profileIds.map(async (id: any) => {
+    // Limit concurrency to avoid timeouts/crashes
+    const fetchProfileData = async (id: any) => {
       try {
-        const pRes = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/profiles/${id}`);
-        if (pRes.ok) {
-          const pDoc = await pRes.json();
-          const pData = extract(pDoc.fields);
+        // 1. Try local data first
+        let pData = localProfiles.find(p => p.id === id || p.id === parseInt(id));
+        
+        // 2. If not found locally, fetch from Firestore
+        if (!pData) {
+          const pRes = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/profiles/${id}`);
+          if (pRes.ok) {
+            const pDoc = await pRes.json();
+            pData = extract(pDoc.fields);
+            pData.id = id;
+          }
+        }
+
+        if (pData) {
+          if (!pData.id) pData.id = id;
           profiles.push(pData);
           
-          // Fetch career from external API
+          // 3. Fetch career from external API (only if needed or always?)
+          // To keep it fast, we could skip this if it's too slow, but the user wants it.
           const cRes = await fetch(`https://api.daihoidangtoanquoc.vn/api/profiles/get/political-career?profileId=${id}`);
           if (cRes.ok) {
             const cData = await cRes.json();
@@ -75,9 +100,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
       } catch (e) {
-        console.error(`Error fetching profile ${id}`, e);
+        console.error(`Error processing profile ${id}:`, e);
       }
-    }));
+    };
+
+    // Process in chunks of 10 to avoid hitting limits
+    const chunks = [];
+    for (let i = 0; i < profileIds.length; i += 10) {
+      chunks.push(profileIds.slice(i, i + 10));
+    }
+
+    for (const chunk of chunks) {
+      await Promise.all(chunk.map(id => fetchProfileData(id)));
+    }
 
     // Generate HTML
     const html = generateCompiledHtml(listData, profiles, careers);
@@ -91,21 +126,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
   } catch (error) {
     console.error('Share error:', error);
-    res.status(500).send('<h1>Lỗi khi tạo trang chia sẻ</h1><p>' + (error as Error).message + '</p>');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).send(`<h1>Lỗi khi tạo trang chia sẻ</h1><p>${errorMessage}</p>`);
   }
 }
 
 function generateCompiledHtml(list: any, profiles: any[], careers: any) {
-    const profilesData = JSON.stringify(profiles);
-    const careersData = JSON.stringify(careers);
-    const groupsData = JSON.stringify(list.groups || []);
+    // Escape data for safe injection into a script tag
+    const safeJson = (data: any) => JSON.stringify(data).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/'/g, '\\u0027');
+    
+    // Escape for template literal backticks and interpolation
+    const escapeForTemplate = (str: string) => str.replace(/`/g, '\\`').replace(/\${/g, '\\${');
+    
+    const profilesData = escapeForTemplate(safeJson(profiles));
+    const careersData = escapeForTemplate(safeJson(careers));
+    const groupsData = escapeForTemplate(safeJson(list.groups || []));
+    const listName = list.name || 'Danh sách nhân sự';
+    
     return `
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${list.name}</title>
+    <title>${escapeForTemplate(listName)}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -130,7 +174,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
 <body class="bg-gray-50 text-gray-900">
     <div class="min-h-screen flex flex-col">
         <header class="bg-white border-b border-gray-200 py-12 px-4 text-center">
-            <h1 class="text-4xl font-extrabold text-gray-900 mb-2">${list.name}</h1>
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-2">${escapeForTemplate(listName)}</h1>
             <div class="w-24 h-1 bg-blue-600 mx-auto rounded-full"></div>
         </header>
 

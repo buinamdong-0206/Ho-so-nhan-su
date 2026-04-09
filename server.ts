@@ -58,6 +58,7 @@ async function startServer() {
       // Helper to extract fields from Firestore JSON
       const extract = (fields: any) => {
         const result: any = {};
+        if (!fields) return result;
         for (const key in fields) {
           const val = fields[key];
           if (val.stringValue !== undefined) result[key] = val.stringValue;
@@ -105,6 +106,7 @@ async function startServer() {
 
       // Generate HTML (using the same template as in App.tsx)
       const html = generateCompiledHtml(listData, profiles, careers);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(html);
       
     } catch (error) {
@@ -205,7 +207,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
                 groups.forEach(group => {
                     const groupDiv = document.createElement('div');
                     groupDiv.className = "text-center mb-16";
-                    groupDiv.innerHTML = \`<h3 class="text-xl font-bold text-gray-900 mb-8 pb-2 border-b-2 border-blue-500 inline-block">\${group.name}</h3>\`;
+                    groupDiv.innerHTML = '<h3 class="text-xl font-bold text-gray-900 mb-8 pb-2 border-b-2 border-blue-500 inline-block">' + group.name + '</h3>';
                     
                     const flexContainer = document.createElement('div');
                     flexContainer.className = "flex flex-wrap justify-center gap-6";
@@ -234,15 +236,14 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
             const card = document.createElement('div');
             card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group w-[140px] sm:w-[160px] md:w-[180px]";
             card.onclick = () => openModal(p.id);
-            card.innerHTML = \`
-                <div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">
-                    <img src="\${p.avatar_url}" alt="\${p.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-                </div>
-                <div class="w-full px-1">
-                    <h4 class="font-bold text-sm text-gray-900 uppercase mb-1 line-clamp-2 min-h-[2.5rem] flex items-center justify-center">\${p.name}</h4>
-                    <p class="text-[10px] text-blue-600 font-bold leading-tight uppercase line-clamp-3">\${p.main_title}</p>
-                </div>
-            \`;
+            card.innerHTML = 
+                '<div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">' +
+                    '<img src="' + p.avatar_url + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
+                '</div>' +
+                '<div class="w-full px-1">' +
+                    '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 line-clamp-2 min-h-[2.5rem] flex items-center justify-center">' + p.name + '</h4>' +
+                    '<p class="text-[10px] text-blue-600 font-bold leading-tight uppercase line-clamp-3">' + p.main_title + '</p>' +
+                '</div>';
             return card;
         }
 
@@ -251,92 +252,94 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
             if (!profile) return;
 
             const profileCareers = careers[id] || [];
-            const careerHtml = profileCareers.length > 0 
-                ? \`<div class="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
-                    <table class="career-table">
-                        <tbody class="divide-y divide-gray-50">
-                            \${profileCareers.map(c => {
+            let careerHtml = "";
+            if (profileCareers.length > 0) {
+                careerHtml = '<div class="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">' +
+                    '<table class="career-table">' +
+                        '<tbody class="divide-y divide-gray-50">' +
+                            profileCareers.map(c => {
                                 const clean = c.description.replace(/<[^>]*>/g, '').trim();
                                 const colon = clean.indexOf(':');
                                 const time = colon > 0 && colon < 35 ? clean.slice(0, colon+1) : '';
                                 const text = colon > 0 && colon < 35 ? clean.slice(colon+1) : clean;
-                                return \`<tr>
-                                    <td class="time-cell">
-                                        <div class="flex items-start gap-3">
-                                            <div class="marker"></div>
-                                            <span>\${time}</span>
-                                        </div>
-                                    </td>
-                                    <td class="content-cell">\${text}</td>
-                                </tr>\`;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>\`
-                : '<div class="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200"><p class="text-sm text-gray-400 italic">Không có dữ liệu tiểu sử.</p></div>';
+                                return '<tr>' +
+                                    '<td class="time-cell">' +
+                                        '<div class="flex items-start gap-3">' +
+                                            '<div class="marker"></div>' +
+                                            '<span>' + time + '</span>' +
+                                        '</div>' +
+                                    '</td>' +
+                                    '<td class="content-cell">' + text + '</td>' +
+                                '</tr>';
+                            }).join('') +
+                        '</tbody>' +
+                    '</table>' +
+                '</div>';
+            } else {
+                careerHtml = '<div class="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200"><p class="text-sm text-gray-400 italic">Không có dữ liệu tiểu sử.</p></div>';
+            }
 
             const birthDayStr = profile.birth_day ? profile.birth_day.toString() : '';
             const formattedBirthDay = birthDayStr.length === 8 
-                ? \`\${birthDayStr.slice(6,8)}/\${birthDayStr.slice(4,6)}/\${birthDayStr.slice(0,4)}\`
+                ? birthDayStr.slice(6,8) + '/' + birthDayStr.slice(4,6) + '/' + birthDayStr.slice(0,4)
                 : 'N/A';
 
-            const content = \`
-                <div class="flex flex-col md:flex-row gap-8 mb-10">
-                    <div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">
-                        <img src="\${profile.avatar_url}" alt="\${profile.name}" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">
-                    </div>
-                    <div class="flex-1">
-                        <div class="mb-6 text-center md:text-left">
-                            <h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">\${profile.name}</h2>
-                            <p class="text-blue-600 font-bold text-lg leading-snug mb-4">\${profile.main_title}</p>
-                        </div>
-                        <section>
-                            <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">📍</div>
-                                    <div>
-                                        <p class="text-[10px] text-gray-400 font-bold uppercase">Quê quán</p>
-                                        <p class="text-sm font-bold text-gray-700">\${profile.hometown || 'N/A'}</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">📅</div>
-                                    <div>
-                                        <p class="text-[10px] text-gray-400 font-bold uppercase">Ngày sinh</p>
-                                        <p class="text-sm font-bold text-gray-700">\${formattedBirthDay}</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">🎓</div>
-                                    <div>
-                                        <p class="text-[10px] text-gray-400 font-bold uppercase">Trình độ</p>
-                                        <p class="text-sm font-bold text-gray-700">\${profile.profession_level || 'N/A'}</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">👤</div>
-                                    <div>
-                                        <p class="text-[10px] text-gray-400 font-bold uppercase">Dân tộc</p>
-                                        <p class="text-sm font-bold text-gray-700">\${profile.ethnicity || 'Kinh'}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
-                </div>
-                <div class="space-y-10">
-                    \${profile.intro ? \`<section class="bg-gray-50 p-6 rounded-2xl border border-gray-100"><h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Giới thiệu</h4><p class="text-gray-600 text-sm leading-relaxed italic">"\${profile.intro}"</p></section>\` : ''}
-                    <section>
-                        <div class="flex items-center gap-3 mb-6">
-                            <div class="h-px flex-1 bg-gray-100"></div>
-                            <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400">Tóm tắt quá trình công tác</h4>
-                            <div class="h-px flex-1 bg-gray-100"></div>
-                        </div>
-                        \${careerHtml}
-                    </section>
-                </div>
-            \`;
+            const content = 
+                '<div class="flex flex-col md:flex-row gap-8 mb-10">' +
+                    '<div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">' +
+                        '<img src="' + profile.avatar_url + '" alt="' + profile.name + '" class="w-full h-full object-contain bg-gray-50 rounded-2xl shadow-sm border border-gray-100">' +
+                    '</div>' +
+                    '<div class="flex-1">' +
+                        '<div class="mb-6 text-center md:text-left">' +
+                            '<h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">' + profile.name + '</h2>' +
+                            '<p class="text-blue-600 font-bold text-lg leading-snug mb-4">' + profile.main_title + '</p>' +
+                        '</div>' +
+                        '<section>' +
+                            '<h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>' +
+                            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">' +
+                                '<div class="flex items-center gap-3">' +
+                                    '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">📍</div>' +
+                                    '<div>' +
+                                        '<p class="text-[10px] text-gray-400 font-bold uppercase">Quê quán</p>' +
+                                        '<p class="text-sm font-bold text-gray-700">' + (profile.hometown || 'N/A') + '</p>' +
+                                    '</div>' +
+                                '</div>' +
+                                '<div class="flex items-center gap-3">' +
+                                    '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">📅</div>' +
+                                    '<div>' +
+                                        '<p class="text-[10px] text-gray-400 font-bold uppercase">Ngày sinh</p>' +
+                                        '<p class="text-sm font-bold text-gray-700">' + formattedBirthDay + '</p>' +
+                                    '</div>' +
+                                '</div>' +
+                                '<div class="flex items-center gap-3">' +
+                                    '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">🎓</div>' +
+                                    '<div>' +
+                                        '<p class="text-[10px] text-gray-400 font-bold uppercase">Trình độ</p>' +
+                                        '<p class="text-sm font-bold text-gray-700">' + (profile.profession_level || 'N/A') + '</p>' +
+                                    '</div>' +
+                                '</div>' +
+                                '<div class="flex items-center gap-3">' +
+                                    '<div class="p-2 bg-blue-50 rounded-lg text-blue-600">👤</div>' +
+                                    '<div>' +
+                                        '<p class="text-[10px] text-gray-400 font-bold uppercase">Dân tộc</p>' +
+                                        '<p class="text-sm font-bold text-gray-700">' + (profile.ethnicity || 'Kinh') + '</p>' +
+                                    '</div>' +
+                                '</div>' +
+                            '</div>' +
+                        '</section>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="space-y-10">' +
+                    (profile.intro ? '<section class="bg-gray-50 p-6 rounded-2xl border border-gray-100"><h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Giới thiệu</h4><p class="text-gray-600 text-sm leading-relaxed italic">"' + profile.intro + '"</p></section>' : '') +
+                    '<section>' +
+                        '<div class="flex items-center gap-3 mb-6">' +
+                            '<div class="h-px flex-1 bg-gray-100"></div>' +
+                            '<h4 class="text-xs font-bold uppercase tracking-widest text-gray-400">Tóm tắt quá trình công tác</h4>' +
+                            '<div class="h-px flex-1 bg-gray-100"></div>' +
+                        '</div>' +
+                        careerHtml +
+                    '</section>' +
+                '</div>';
 
             document.getElementById('modal-body-content').innerHTML = content;
             document.getElementById('modal-overlay').style.display = 'flex';

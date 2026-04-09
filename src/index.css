@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@layer components {
+  .career-table {
+    @apply w-full border-separate;
+    border-spacing: 0 12px;
+  }
+
+  .career-table td {
+    @apply p-4 align-top bg-white border-y border-gray-100 first:border-l first:rounded-l-2xl last:border-r last:rounded-r-2xl shadow-sm;
+  }
+  
+  .career-table tr {
+    @apply transition-all duration-300;
+  }
+
+  .career-table td:first-child {
+    @apply font-bold text-gray-900 w-1/3 sm:w-1/4 relative pl-10;
+  }
+
+  /* Dấu tròn nhỏ ở đầu mỗi mục */
+  .career-table td:first-child::before {
+    content: '';
+    @apply absolute left-4 top-[1.35rem] w-2.5 h-2.5 bg-red-600 rounded-full ring-4 ring-red-50;
+  }
+
+  .career-table td:last-child {
+    @apply text-gray-600 leading-relaxed;
+  }
+
+  .career-table p {
+    @apply m-0;
+  }
+}

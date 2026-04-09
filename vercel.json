@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/proxy/:path*",
+      "destination": "https://api.daihoidangtoanquoc.vn/:path*"
+    },
+    {
+      "source": "/api/proxy-cdn/:path*",
+      "destination": "https://cdn.daihoidangtoanquoc.vn/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

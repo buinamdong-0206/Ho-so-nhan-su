@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "CustomList": {
+      "title": "CustomList",
+      "description": "A custom list of profiles created by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "profileIds": { "type": "array", "items": { "type": "number" } },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "profileIds", "userId", "createdAt"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "A political profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "name": { "type": "string" },
+        "main_title": { "type": "string" },
+        "avatar_url": { "type": "string" },
+        "hometown": { "type": "string" },
+        "birth_day": { "type": "number" },
+        "party_day": { "type": "number" },
+        "profession_level": { "type": "string" },
+        "politic_level": { "type": "string" },
+        "gender": { "type": "number" },
+        "ethnicity": { "type": "string" },
+        "intro": { "type": "string" }
+      },
+      "required": ["id", "name", "main_title", "avatar_url"]
+    }
+  },
+  "firestore": {
+    "/custom_lists/{listId}": {
+      "schema": { "$ref": "#/entities/CustomList" },
+      "description": "Stores custom lists created by users"
+    },
+    "/profiles/{profileId}": {
+      "schema": { "$ref": "#/entities/Profile" },
+      "description": "Stores political profiles"
+    }
+  }
+}

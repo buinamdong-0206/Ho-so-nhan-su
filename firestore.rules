@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: custom_lists
+    // Document ID: {listId}
+    // Fields:
+    //   - id: string (required) - Unique identifier for the list
+    //   - name: string (required, < 100 chars) - Name of the list
+    //   - profileIds: list of numbers (required, max 500) - Array of profile IDs
+    //   - userId: string (required, immutable) - ID of the user who created the list
+    //   - createdAt: string (required, immutable) - Creation timestamp
+    //
+    // Collection: profiles
+    // Document ID: {profileId}
+    // Fields:
+    //   - id: number (required)
+    //   - name: string (required)
+    //   - main_title: string (required)
+    //   - avatar_url: string (required)
+    //   - hometown: string (optional)
+    //   - birth_day: number (optional)
+    //   - party_day: number (optional)
+    //   - profession_level: string (optional)
+    //   - politic_level: string (optional)
+    //   - gender: number (optional)
+    //   - ethnicity: string (optional)
+    //   - intro: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidCustomList(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'profileIds', 'userId', 'createdAt']) &&
+             isValidStringLength('id', 1, 100) &&
+             isValidStringLength('name', 1, 100) &&
+             data.profileIds is list && data.profileIds.size() <= 500 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.createdAt is string;
+    }
+
+    match /custom_lists/{listId} {
+      // Allow read if the user is the owner
+      allow read: if isOwner(resource.data.userId);
+      
+      // Allow create if authenticated, data is valid, and userId matches auth.uid
+      allow create: if isAuthenticated() && 
+                    isValidCustomList(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid;
+                    
+      // Allow update if owner, data is valid, and immutable fields haven't changed
+      allow update: if isOwner(resource.data.userId) && 
+                    isValidCustomList(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    request.resource.data.id == resource.data.id;
+                    
+      // Allow delete if owner
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    match /profiles/{profileId} {
+      // Allow anyone to read profiles
+      allow read: if true;
+      // Allow authenticated users to write (for syncing)
+      allow write: if isAuthenticated();
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Remix: Hồ sơ nhân sự",
+  "description": "Trang web hiển thị hồ sơ nhân sự từ dữ liệu JSON",
+  "requestFramePermissions": []
+}

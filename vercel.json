@@ -24,6 +24,10 @@
       "destination": "https://cdn.daihoidangtoanquoc.vn/:path*"
     },
     {
+      "source": "/share/:listId",
+      "destination": "/api/share?listId=:listId"
+    },
+    {
       "source": "/((?!api|share).*)",
       "destination": "/index.html"
     }

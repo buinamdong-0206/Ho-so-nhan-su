@@ -260,7 +260,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
                     groupDiv.innerHTML = '<h3 class="text-xl font-bold text-gray-900 mb-8 pb-2 border-b-2 border-blue-500 inline-block">' + group.name + '</h3>';
                     
                     const gridContainer = document.createElement('div');
-                    gridContainer.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6";
+                    gridContainer.className = "flex flex-wrap justify-center gap-4 sm:gap-6";
                     
                     group.profileIds.forEach(id => {
                         const p = profiles.find(prof => prof.id === id);
@@ -275,7 +275,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
                 });
             } else {
                 const gridContainer = document.createElement('div');
-                gridContainer.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6";
+                gridContainer.className = "flex flex-wrap justify-center gap-4 sm:gap-6";
                 profiles.forEach(p => {
                     const customTitle = (listCustomTitles && (listCustomTitles[p.id] || listCustomTitles[p.id.toString()])) || p.main_title;
                     gridContainer.appendChild(createProfileCard(p, customTitle));
@@ -286,7 +286,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
 
         function createProfileCard(p, displayTitle) {
             const card = document.createElement('div');
-            card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group h-full";
+            card.className = "w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-1rem)] md:w-[calc(25%-1.125rem)] lg:w-[calc(20%-1.2rem)] max-w-[220px] bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group h-full";
             card.onclick = () => openModal(p.id, displayTitle);
             card.innerHTML = 
                 '<div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">' +
@@ -294,7 +294,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
                 '</div>' +
                 '<div class="w-full px-1 flex flex-col flex-1">' +
                     '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 flex items-center justify-center">' + p.name + '</h4>' +
-                    '<p class="text-[10px] text-blue-600 font-bold leading-tight uppercase flex-1">' + displayTitle + '</p>' +
+                    '<p class="text-xs text-blue-600 font-bold leading-relaxed uppercase flex-1 break-words">' + displayTitle + '</p>' +
                 '</div>';
             return card;
         }
@@ -340,7 +340,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
                 '<div class="mb-10">' +
                     '<div class="mb-8 text-center">' +
                         '<h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">' + profile.name + '</h2>' +
-                        '<p class="text-blue-600 font-bold text-lg leading-snug">' + displayTitle + '</p>' +
+                        '<p class="text-blue-600 font-bold text-lg leading-snug uppercase">' + displayTitle + '</p>' +
                     '</div>' +
                     '<div class="flex flex-col md:flex-row gap-8 items-start">' +
                         '<div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">' +

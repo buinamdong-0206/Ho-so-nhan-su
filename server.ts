@@ -140,6 +140,8 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
     const careersData = JSON.stringify(careers);
     const groupsData = JSON.stringify(list.groups || []);
 
+    const listCustomTitles = JSON.stringify(list.customTitles || {});
+
     return `
 <!DOCTYPE html>
 <html lang="vi">
@@ -163,9 +165,9 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
         .modal-body { flex: 1; overflow-y: auto; padding: 24px; }
         @media (min-width: 640px) { .modal-body { padding: 40px; } }
         
-        .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -200,54 +202,57 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
         const profiles = ${profilesData};
         const careers = ${careersData};
         const groups = ${groupsData};
+        const listCustomTitles = ${listCustomTitles};
 
         function renderContent() {
             const container = document.getElementById('main-content');
             if (groups.length > 0) {
                 groups.forEach(group => {
                     const groupDiv = document.createElement('div');
-                    groupDiv.className = "text-center mb-16";
+                    groupDiv.className = "text-center mb-16 w-full";
                     groupDiv.innerHTML = '<h3 class="text-xl font-bold text-gray-900 mb-8 pb-2 border-b-2 border-blue-500 inline-block">' + group.name + '</h3>';
                     
-                    const flexContainer = document.createElement('div');
-                    flexContainer.className = "flex flex-wrap justify-center gap-6";
+                    const gridContainer = document.createElement('div');
+                    gridContainer.className = "flex flex-wrap justify-center gap-4 sm:gap-6";
                     
                     group.profileIds.forEach(id => {
                         const p = profiles.find(prof => prof.id === id);
                         if (p) {
-                            flexContainer.appendChild(createProfileCard(p));
+                            const customTitle = (group.customTitles && (group.customTitles[id] || group.customTitles[id.toString()])) || (listCustomTitles && (listCustomTitles[id] || listCustomTitles[id.toString()])) || p.main_title;
+                            gridContainer.appendChild(createProfileCard(p, customTitle));
                         }
                     });
                     
-                    groupDiv.appendChild(flexContainer);
+                    groupDiv.appendChild(gridContainer);
                     container.appendChild(groupDiv);
                 });
             } else {
-                const flexContainer = document.createElement('div');
-                flexContainer.className = "flex flex-wrap justify-center gap-6";
+                const gridContainer = document.createElement('div');
+                gridContainer.className = "flex flex-wrap justify-center gap-4 sm:gap-6";
                 profiles.forEach(p => {
-                    flexContainer.appendChild(createProfileCard(p));
+                    const customTitle = (listCustomTitles && (listCustomTitles[p.id] || listCustomTitles[p.id.toString()])) || p.main_title;
+                    gridContainer.appendChild(createProfileCard(p, customTitle));
                 });
-                container.appendChild(flexContainer);
+                container.appendChild(gridContainer);
             }
         }
 
-        function createProfileCard(p) {
+        function createProfileCard(p, displayTitle) {
             const card = document.createElement('div');
-            card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group w-[140px] sm:w-[160px] md:w-[180px]";
-            card.onclick = () => openModal(p.id);
+            card.className = "w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-1rem)] md:w-[calc(25%-1.125rem)] lg:w-[calc(20%-1.2rem)] max-w-[220px] bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group h-full";
+            card.onclick = () => openModal(p.id, displayTitle);
             card.innerHTML = 
                 '<div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">' +
                     '<img src="' + p.avatar_url + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
                 '</div>' +
-                '<div class="w-full px-1">' +
-                    '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 line-clamp-2 min-h-[2.5rem] flex items-center justify-center">' + p.name + '</h4>' +
-                    '<p class="text-[10px] text-blue-600 font-bold leading-tight uppercase line-clamp-3">' + p.main_title + '</p>' +
+                '<div class="w-full px-1 flex flex-col flex-1">' +
+                    '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 flex items-center justify-center">' + p.name + '</h4>' +
+                    '<p class="text-xs text-blue-600 font-bold leading-relaxed uppercase flex-1 break-words">' + displayTitle + '</p>' +
                 '</div>';
             return card;
         }
 
-        function openModal(id) {
+        function openModal(id, displayTitle) {
             const profile = profiles.find(p => p.id === id);
             if (!profile) return;
 
@@ -292,7 +297,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
                     '<div class="flex-1">' +
                         '<div class="mb-6 text-center md:text-left">' +
                             '<h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">' + profile.name + '</h2>' +
-                            '<p class="text-blue-600 font-bold text-lg leading-snug mb-4">' + profile.main_title + '</p>' +
+                            '<p class="text-blue-600 font-bold text-lg leading-snug mb-4">' + displayTitle + '</p>' +
                         '</div>' +
                         '<section>' +
                             '<h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>' +

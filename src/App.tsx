@@ -357,9 +357,9 @@ export default function App() {
         .modal-body { flex: 1; overflow-y: auto; padding: 24px; }
         @media (min-width: 640px) { .modal-body { padding: 40px; } }
         
-        .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-1 { display: -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-2 { display: -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-3 { display: -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -403,42 +403,42 @@ export default function App() {
                     groupDiv.className = "text-center mb-16";
                     groupDiv.innerHTML = '<h3 class="text-xl font-bold text-gray-900 mb-8 pb-2 border-b-2 border-blue-500 inline-block">' + group.name + '</h3>';
                     
-                    const flexContainer = document.createElement('div');
-                    flexContainer.className = "flex flex-wrap justify-center gap-6";
+                    const gridContainer = document.createElement('div');
+                    gridContainer.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6";
                     
                     group.profileIds.forEach(id => {
                         const p = profiles.find(prof => prof.id === id);
                         if (p) {
                             const customTitle = (group.customTitles && (group.customTitles[id] || group.customTitles[id.toString()])) || (listCustomTitles && (listCustomTitles[id] || listCustomTitles[id.toString()])) || p.main_title;
-                            flexContainer.appendChild(createProfileCard(p, customTitle));
+                            gridContainer.appendChild(createProfileCard(p, customTitle));
                         }
                     });
                     
-                    groupDiv.appendChild(flexContainer);
+                    groupDiv.appendChild(gridContainer);
                     container.appendChild(groupDiv);
                 });
             } else {
-                const flexContainer = document.createElement('div');
-                flexContainer.className = "flex flex-wrap justify-center gap-6";
+                const gridContainer = document.createElement('div');
+                gridContainer.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6";
                 profiles.forEach(p => {
                     const customTitle = (listCustomTitles && (listCustomTitles[p.id] || listCustomTitles[p.id.toString()])) || p.main_title;
-                    flexContainer.appendChild(createProfileCard(p, customTitle));
+                    gridContainer.appendChild(createProfileCard(p, customTitle));
                 });
-                container.appendChild(flexContainer);
+                container.appendChild(gridContainer);
             }
         }
 
         function createProfileCard(p, displayTitle) {
             const card = document.createElement('div');
-            card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group w-[140px] sm:w-[160px] md:w-[180px]";
+            card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group h-full";
             card.onclick = () => openModal(p.id, displayTitle);
             card.innerHTML = 
                 '<div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">' +
                     '<img src="' + p.avatar_url + '" alt="' + p.name + '" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">' +
                 '</div>' +
-                '<div class="w-full px-1">' +
+                '<div class="w-full px-1 flex flex-col flex-1">' +
                     '<h4 class="font-bold text-sm text-gray-900 uppercase mb-1 flex items-center justify-center">' + p.name + '</h4>' +
-                    '<p class="text-[10px] text-blue-600 font-bold leading-tight uppercase">' + displayTitle + '</p>' +
+                    '<p class="text-xs text-blue-600 font-bold leading-relaxed flex-1 break-words uppercase">' + displayTitle + '</p>' +
                 '</div>';
             return card;
         }
@@ -488,7 +488,7 @@ export default function App() {
                     '<div class="flex-1">' +
                         '<div class="mb-6 text-center md:text-left">' +
                             '<h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">' + profile.name + '</h2>' +
-                            '<p class="text-blue-600 font-bold text-lg leading-snug mb-4">' + displayTitle + '</p>' +
+                            '<p class="text-blue-600 font-bold text-lg leading-snug mb-4 uppercase">' + displayTitle + '</p>' +
                         '</div>' +
                         '<section>' +
                             '<h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>' +
@@ -889,7 +889,7 @@ export default function App() {
                   </div>
                   <div className="p-4">
                     <h3 className="font-bold text-lg text-gray-900 mb-1 line-clamp-1">{profile.name}</h3>
-                    <p className="text-sm text-blue-600 font-medium mb-3 line-clamp-2 h-10">
+                    <p className={`text-sm text-blue-600 font-bold mb-3 uppercase ${activeList ? '' : 'line-clamp-2 h-10'}`}>
                       {(() => {
                         if (activeList) {
                           const group = activeList.groups?.find(g => g.profileIds.includes(profile.id));
@@ -1244,7 +1244,7 @@ export default function App() {
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
                               whileHover={{ y: -8 }}
-                              className="w-full bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col h-full"
+                              className="w-full bg-white rounded-3xl border border-gray-200 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col h-full"
                               onClick={() => setSelectedProfile(profile)}
                             >
                               <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
@@ -1262,7 +1262,7 @@ export default function App() {
                               </div>
                               <div className="p-6 flex flex-col items-center text-center flex-1">
                                 <h3 className="font-bold text-xl text-gray-900 mb-2">{profile.name}</h3>
-                                <p className="text-sm text-blue-600 font-bold mb-4 flex-1">
+                                <p className="text-sm text-blue-600 font-bold leading-relaxed break-words uppercase">
                                   {group.customTitles?.[profile.id] || group.customTitles?.[profile.id.toString()] || viewingList.customTitles?.[profile.id] || viewingList.customTitles?.[profile.id.toString()] || profile.main_title}
                                 </p>
                               </div>
@@ -1283,7 +1283,7 @@ export default function App() {
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           whileHover={{ y: -8 }}
-                          className="w-full bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col h-full"
+                          className="w-full bg-white rounded-3xl border border-gray-200 shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col h-full"
                           onClick={() => setSelectedProfile(profile)}
                         >
                           <div className="aspect-[4/5] relative overflow-hidden bg-gray-100">
@@ -1301,7 +1301,7 @@ export default function App() {
                           </div>
                           <div className="p-6 flex flex-col items-center text-center flex-1">
                             <h3 className="font-bold text-xl text-gray-900 mb-2">{profile.name}</h3>
-                            <p className="text-sm text-blue-600 font-bold mb-4 flex-1">
+                            <p className="text-sm text-blue-600 font-bold leading-relaxed break-words uppercase">
                               {viewingList.customTitles?.[profile.id] || viewingList.customTitles?.[profile.id.toString()] || profile.main_title}
                             </p>
                           </div>
@@ -1345,7 +1345,7 @@ export default function App() {
                 <div className="mb-10">
                   <div className="mb-8 text-center">
                     <h2 className="text-3xl font-extrabold text-gray-900 mb-2 uppercase">{selectedProfile.name}</h2>
-                    <p className="text-blue-600 font-bold text-lg leading-snug">
+                    <p className="text-blue-600 font-bold text-lg leading-snug uppercase">
                       {(() => {
                         // If we are viewing a list in the modal
                         if (viewingList) {

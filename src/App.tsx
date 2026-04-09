@@ -320,8 +320,17 @@ export default function App() {
       .map(id => profiles.find(p => p.id === id))
       .filter((p): p is Profile => !!p);
 
+    // Get all careers for the profiles in this list
+    const listCareers: Record<number, PoliticalCareer[]> = {};
+    list.profileIds.forEach(id => {
+      if (politicalCareers[id]) {
+        listCareers[id] = politicalCareers[id];
+      }
+    });
+
     const profilesData = JSON.stringify(listProfiles);
-    const careersData = JSON.stringify(politicalCareers);
+    const careersData = JSON.stringify(listCareers);
+    const groupsData = JSON.stringify(list.groups || []);
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -335,11 +344,11 @@ export default function App() {
     <style>
         body { font-family: 'Inter', sans-serif; }
         .career-table { width: 100%; border-collapse: collapse; }
-        .career-table tr:hover { background-color: rgba(254, 242, 242, 0.5); }
+        .career-table tr:hover { background-color: rgba(239, 246, 255, 0.5); }
         .career-table td { padding: 16px 0; border-bottom: 1px solid #f9fafb; }
-        .time-cell { white-space: nowrap; padding-right: 32px; font-weight: 700; color: #111827; vertical-align: top; }
+        .time-cell { white-space: nowrap; padding-right: 32px; font-weight: 700; color: #111827; vertical-align: top; width: 25%; }
         .content-cell { color: #4b5563; line-height: 1.625; vertical-align: top; }
-        .marker { width: 6px; height: 6px; background-color: #ef4444; border-radius: 9999px; flex-shrink: 0; margin-top: 6px; }
+        .marker { width: 6px; height: 6px; background-color: #3b82f6; border-radius: 9999px; flex-shrink: 0; margin-top: 6px; }
         
         /* Modal Styles */
         #modal-overlay { display: none; position: fixed; inset: 0; z-index: 50; background-color: rgba(0,0,0,0.4); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 16px; }
@@ -348,62 +357,24 @@ export default function App() {
         @media (min-width: 640px) { .modal-body { padding: 40px; } }
         
         .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
     <div class="min-h-screen flex flex-col">
         <header class="bg-white border-b border-gray-200 py-12 px-4 text-center">
-            <h1 class="text-4xl font-extrabold text-red-600">${list.name}</h1>
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-2">${list.name}</h1>
+            <div class="w-24 h-1 bg-blue-600 mx-auto rounded-full"></div>
         </header>
 
-        <main class="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12">
-            ${(list.groups && list.groups.length > 0) ? list.groups.map(group => `
-                <div class="mb-12">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-red-600 inline-block">${group.name}</h2>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
-                        ${group.profileIds.map(id => {
-                            const p = listProfiles.find(prof => prof.id === id);
-                            if (!p) return '';
-                            return `
-                            <div class="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group p-5" onclick="openModal(${p.id})">
-                                <div class="mb-4 text-center">
-                                    <h3 class="font-black text-lg text-gray-900 uppercase line-clamp-1">${p.name}</h3>
-                                </div>
-                                <div class="aspect-[4/5] relative overflow-hidden bg-gray-100 rounded-2xl">
-                                    <img src="${p.avatar_url}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                                        <span class="text-white text-sm font-medium">Xem chi tiết</span>
-                                    </div>
-                                </div>
-                                <div class="mt-4 text-center">
-                                    <p class="text-[11px] text-red-600 font-bold">${p.main_title}</p>
-                                </div>
-                            </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-            `).join('') : `
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
-                ${listProfiles.map(p => `
-                    <div class="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group p-5" onclick="openModal(${p.id})">
-                        <div class="mb-4 text-center">
-                            <h3 class="font-black text-lg text-gray-900 uppercase line-clamp-1">${p.name}</h3>
-                        </div>
-                        <div class="aspect-[4/5] relative overflow-hidden bg-gray-100 rounded-2xl">
-                            <img src="${p.avatar_url}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                                <span class="text-white text-sm font-medium">Xem chi tiết</span>
-                            </div>
-                        </div>
-                        <div class="mt-4 text-center">
-                            <p class="text-[11px] text-red-600 font-bold">${p.main_title}</p>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-            `}
+        <main id="main-content" class="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12">
+            <!-- Content will be injected by JS -->
         </main>
+
+        <footer class="bg-white border-t border-gray-200 py-8 text-center text-sm text-gray-500">
+            <p>© 2026 Hồ sơ nhân sự. Dữ liệu được cung cấp bởi Đại hội Đảng toàn quốc.</p>
+        </footer>
     </div>
 
     <!-- Modal Structure -->
@@ -424,6 +395,54 @@ export default function App() {
     <script>
         const profiles = ${profilesData};
         const careers = ${careersData};
+        const groups = ${groupsData};
+
+        function renderContent() {
+            const container = document.getElementById('main-content');
+            if (groups.length > 0) {
+                groups.forEach(group => {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = "text-center mb-16";
+                    groupDiv.innerHTML = \`<h3 class="text-xl font-bold text-gray-900 mb-8 pb-2 border-b-2 border-blue-500 inline-block">\${group.name}</h3>\`;
+                    
+                    const flexContainer = document.createElement('div');
+                    flexContainer.className = "flex flex-wrap justify-center gap-6";
+                    
+                    group.profileIds.forEach(id => {
+                        const p = profiles.find(prof => prof.id === id);
+                        if (p) {
+                            flexContainer.appendChild(createProfileCard(p));
+                        }
+                    });
+                    
+                    groupDiv.appendChild(flexContainer);
+                    container.appendChild(groupDiv);
+                });
+            } else {
+                const flexContainer = document.createElement('div');
+                flexContainer.className = "flex flex-wrap justify-center gap-6";
+                profiles.forEach(p => {
+                    flexContainer.appendChild(createProfileCard(p));
+                });
+                container.appendChild(flexContainer);
+            }
+        }
+
+        function createProfileCard(p) {
+            const card = document.createElement('div');
+            card.className = "bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group w-[140px] sm:w-[160px] md:w-[180px]";
+            card.onclick = () => openModal(p.id);
+            card.innerHTML = \`
+                <div class="w-full aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 mb-3">
+                    <img src="\${p.avatar_url}" alt="\${p.name}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                </div>
+                <div class="w-full px-1">
+                    <h4 class="font-bold text-sm text-gray-900 uppercase mb-1 line-clamp-2 min-h-[2.5rem] flex items-center justify-center">\${p.name}</h4>
+                    <p class="text-[10px] text-blue-600 font-bold leading-tight uppercase line-clamp-3">\${p.main_title}</p>
+                </div>
+            \`;
+            return card;
+        }
 
         function openModal(id) {
             const profile = profiles.find(p => p.id === id);
@@ -454,6 +473,11 @@ export default function App() {
                 </div>\`
                 : '<div class="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200"><p class="text-sm text-gray-400 italic">Không có dữ liệu tiểu sử.</p></div>';
 
+            const birthDayStr = profile.birth_day ? profile.birth_day.toString() : '';
+            const formattedBirthDay = birthDayStr.length === 8 
+                ? \`\${birthDayStr.slice(6,8)}/\${birthDayStr.slice(4,6)}/\${birthDayStr.slice(0,4)}\`
+                : 'N/A';
+
             const content = \`
                 <div class="flex flex-col md:flex-row gap-8 mb-10">
                     <div class="w-32 h-40 sm:w-48 sm:h-60 flex-shrink-0 mx-auto md:mx-0">
@@ -462,34 +486,34 @@ export default function App() {
                     <div class="flex-1">
                         <div class="mb-6 text-center md:text-left">
                             <h2 class="text-3xl font-extrabold text-gray-900 mb-2 uppercase">\${profile.name}</h2>
-                            <p class="text-red-600 font-bold text-lg leading-snug mb-4">\${profile.main_title}</p>
+                            <p class="text-blue-600 font-bold text-lg leading-snug mb-4">\${profile.main_title}</p>
                         </div>
                         <section>
                             <h4 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4 text-center md:text-left">Thông tin cơ bản</h4>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-red-50 rounded-lg text-red-600">📍</div>
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">📍</div>
                                     <div>
                                         <p class="text-[10px] text-gray-400 font-bold uppercase">Quê quán</p>
                                         <p class="text-sm font-bold text-gray-700">\${profile.hometown || 'N/A'}</p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-red-50 rounded-lg text-red-600">📅</div>
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">📅</div>
                                     <div>
                                         <p class="text-[10px] text-gray-400 font-bold uppercase">Ngày sinh</p>
-                                        <p class="text-sm font-bold text-gray-700">\${profile.birth_day ? profile.birth_day.toString().slice(6,8)+'/'+profile.birth_day.toString().slice(4,6)+'/'+profile.birth_day.toString().slice(0,4) : 'N/A'}</p>
+                                        <p class="text-sm font-bold text-gray-700">\${formattedBirthDay}</p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-red-50 rounded-lg text-red-600">🎓</div>
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">🎓</div>
                                     <div>
                                         <p class="text-[10px] text-gray-400 font-bold uppercase">Trình độ</p>
                                         <p class="text-sm font-bold text-gray-700">\${profile.profession_level || 'N/A'}</p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-3">
-                                    <div class="p-2 bg-red-50 rounded-lg text-red-600">👤</div>
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">👤</div>
                                     <div>
                                         <p class="text-[10px] text-gray-400 font-bold uppercase">Dân tộc</p>
                                         <p class="text-sm font-bold text-gray-700">\${profile.ethnicity || 'Kinh'}</p>
@@ -522,10 +546,11 @@ export default function App() {
             document.body.style.overflow = 'auto';
         }
 
-        // Close on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeModal();
         });
+
+        renderContent();
     </script>
 </body>
 </html>`;
@@ -1163,50 +1188,7 @@ export default function App() {
               </div>
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => {
-                    const newWindow = window.open('', '_blank', 'width=1200,height=900');
-                    if (newWindow) {
-                      newWindow.document.write(`
-                        <html>
-                          <head>
-                            <title>${viewingList.name}</title>
-                            <script src="https://cdn.tailwindcss.com"></script>
-                            <style>
-                              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap');
-                              body { font-family: 'Inter', sans-serif; }
-                            </style>
-                          </head>
-                          <body class="bg-gray-50 p-6 md:p-12">
-                            <div class="max-w-7xl mx-auto">
-                              <h1 class="text-4xl font-extrabold text-gray-900 mb-12 text-center">${viewingList.name}</h1>
-                              
-                              ${(viewingList.groups || []).map(group => `
-                                <div class="mb-12 flex flex-col items-center">
-                                  <h3 class="text-xl font-bold text-gray-900 mb-6 pb-2 border-b-2 border-blue-500 inline-block text-center">${group.name}</h3>
-                                  <div class="flex flex-wrap justify-center gap-8 w-full">
-                                    ${group.profileIds.map(id => {
-                                      const profile = profiles.find(p => p.id === id);
-                                      if (!profile) return '';
-                                      return `
-                                        <div class="w-full max-w-sm bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all p-6 flex flex-col items-center text-center">
-                                          <div class="aspect-[4/5] w-full relative overflow-hidden bg-gray-100 rounded-2xl mb-4">
-                                            <img src="${profile.avatar_url}" alt="${profile.name}" class="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                          </div>
-                                          <h3 class="font-bold text-xl text-gray-900 mb-2">${profile.name}</h3>
-                                          <p class="text-sm text-blue-600 font-bold mb-4">${profile.main_title}</p>
-                                        </div>
-                                      `;
-                                    }).join('')}
-                                  </div>
-                                </div>
-                              `).join('')}
-                            </div>
-                          </body>
-                        </html>
-                      `);
-                      newWindow.document.close();
-                    }
-                  }}
+                  onClick={() => window.open(`/share/${viewingList.id}`, '_blank')}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-sm"
                 >
                   <ExternalLink size={18} />

@@ -24,7 +24,7 @@
       "destination": "https://cdn.daihoidangtoanquoc.vn/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api|share).*)",
       "destination": "/index.html"
     }
   ]

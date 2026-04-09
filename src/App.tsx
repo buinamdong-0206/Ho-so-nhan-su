@@ -760,7 +760,7 @@ export default function App() {
                           {customLists.map(list => (
                             <div 
                               key={list.id}
-                              onClick={() => window.open(`/list-view.html?id=${list.id}&slug=${slugify(list.name)}`, '_blank')}
+                              onClick={() => window.open(`/share/${list.id}`, '_blank')}
                               className="group flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
                             >
                               <div className="flex items-center gap-3 truncate">

@@ -82,7 +82,10 @@ export default function App() {
       if (!snapshot.empty) {
         const firestoreProfiles: Profile[] = [];
         snapshot.forEach((doc) => {
-          firestoreProfiles.push(doc.data() as Profile);
+          const data = doc.data() as Profile;
+          if (data && data.id && data.name) {
+            firestoreProfiles.push(data);
+          }
         });
         setProfiles(firestoreProfiles);
         setLoading(false);
@@ -105,7 +108,8 @@ export default function App() {
         throw new Error('Failed to fetch profiles');
       }
       const result: ApiResponse = await response.json();
-      setProfiles(result.data);
+      const validProfiles = result.data.filter(p => p && p.id && p.name);
+      setProfiles(validProfiles);
       setLastUpdated(new Date().toISOString());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đã xảy ra lỗi khi tải dữ liệu');
@@ -214,7 +218,8 @@ export default function App() {
       const response = await fetch(API_URL);
       if (!response.ok) throw new Error('Refresh failed');
       const data: ApiResponse = await response.json();
-      setProfiles(data.data);
+      const validProfiles = data.data.filter(p => p && p.id && p.name);
+      setProfiles(validProfiles);
       setLastUpdated(new Date().toISOString());
       setError(null);
     } catch (err) {
@@ -253,24 +258,23 @@ export default function App() {
   }, [activeListId, customLists]);
 
   const displayProfiles = useMemo(() => {
-    let base = profiles;
+    let base = profiles.filter(p => p && p.id && p.name);
     if (activeList) {
       // Map profileIds to actual profile objects in the order they appear in the list
       base = activeList.profileIds
-        .map(id => profiles.find(p => p.id === id))
+        .map(id => base.find(p => p.id === id))
         .filter((p): p is Profile => !!p);
       return base; // Don't apply ABC sort to custom list if user wants custom order
     }
 
     const filtered = base.filter(profile => 
-      profile.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      profile.main_title.toLowerCase().includes(searchTerm.toLowerCase())
+      (profile.name || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     // Sắp xếp theo tên (từ cuối cùng của họ tên) cho danh sách tổng
     return filtered.sort((a, b) => {
-      const nameA = a.name.trim().split(' ').pop() || '';
-      const nameB = b.name.trim().split(' ').pop() || '';
+      const nameA = (a.name || '').trim().split(' ').pop() || '';
+      const nameB = (b.name || '').trim().split(' ').pop() || '';
       return nameA.localeCompare(nameB, 'vi', { sensitivity: 'base' });
     });
   }, [profiles, searchTerm, activeList]);
@@ -1151,7 +1155,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1">
-                    {profiles.map(p => {
+                    {profiles.filter(p => p && p.id && p.name).map(p => {
                       const isSelected = selectedGroupsForNewList.some(g => g.profileIds.includes(p.id));
                       return (
                         <div 

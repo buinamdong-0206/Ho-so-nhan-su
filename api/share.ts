@@ -276,7 +276,7 @@ function generateCompiledHtml(list: any, profiles: any[], careers: any) {
             } else {
                 const gridContainer = document.createElement('div');
                 gridContainer.className = "flex flex-wrap justify-center gap-4 sm:gap-6";
-                profiles.forEach(p => {
+                profiles.filter(p => p && p.id && p.name).forEach(p => {
                     const customTitle = (listCustomTitles && (listCustomTitles[p.id] || listCustomTitles[p.id.toString()])) || p.main_title;
                     gridContainer.appendChild(createProfileCard(p, customTitle));
                 });
